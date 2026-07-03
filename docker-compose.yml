@@ -12,25 +12,25 @@ services:
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_USERNAME=root
-      - DB_PASSWORD=root
+      - DB_PASSWORD=
       - DB_NAME=linguere
       - JWT_SECRET=change_this_secret_in_production
       - JWT_EXPIRES_IN=1d
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
-      - OPENWEATHER_CITY=Dakar
-      - EXCHANGE_RATE_BASE_CURRENCY=XOF
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - MAIL_HOST=${MAIL_HOST}
-      - MAIL_PORT=${MAIL_PORT}
-      - MAIL_SECURE=${MAIL_SECURE}
-      - MAIL_USER=${MAIL_USER}
-      - MAIL_PASS=${MAIL_PASS}
-      - MAIL_FROM=${MAIL_FROM}
+      # - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+      # - OPENWEATHER_CITY=Dakar
+      # - EXCHANGE_RATE_BASE_CURRENCY=XOF
+      # - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      # - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      # - FRONTEND_URL=${FRONTEND_URL}
+      # - MAIL_HOST=${MAIL_HOST}
+      # - MAIL_PORT=${MAIL_PORT}
+      # - MAIL_SECURE=${MAIL_SECURE}
+      # - MAIL_USER=${MAIL_USER}
+      # - MAIL_PASS=${MAIL_PASS}
+      # - MAIL_FROM=${MAIL_FROM}
     depends_on:
       mysql:
         condition: service_healthy
