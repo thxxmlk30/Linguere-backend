@@ -5,6 +5,7 @@ import { buildTypeOrmConfig } from './config/typeorm.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MenuModule } from './menu/menu.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { MenuModule } from './menu/menu.module';
       inject: [ConfigService],
       useFactory: buildTypeOrmConfig,
       MenuModule,
+      AuthModule,
     }),
   ],
   controllers: [AppController],
