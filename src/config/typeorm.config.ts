@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { MenuItem } from 'src/menu/entities/menu-item.entity';
+import { User } from 'src/users/entities/user.entity';
 
 export const buildTypeOrmConfig = (
   config: ConfigService,
@@ -11,7 +12,7 @@ export const buildTypeOrmConfig = (
   username: config.get<string>('DB_USERNAME', 'root'),
   password: config.get<string>('DB_PASSWORD', ''),
   database: config.get<string>('DB_NAME', 'linguere'),
-  entities: [MenuItem], // on ajoutera les entités au fur et à mesure
+  entities: [MenuItem,User], // on ajoutera les entités au fur et à mesure
   synchronize: true, // crée/modifie les tables automatiquement (dev seulement !)
   logging: true, // affiche les requêtes SQL dans la console (pratique pour apprendre)
 });
