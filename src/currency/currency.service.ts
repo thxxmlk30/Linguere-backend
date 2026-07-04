@@ -7,7 +7,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import type { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
 
 const RATES_CACHE_TTL = 60 * 60 * 1000; // 1h : les taux de change ne bougent pas à la minute

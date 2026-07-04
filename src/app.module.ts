@@ -1,24 +1,53 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-redis-yet';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { buildTypeOrmConfig } from './config/typeorm.config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { MenuModule } from './menu/menu.module';
 import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { MenuModule } from './menu/menu.module';
+import { OrdersModule } from './orders/orders.module';
+import { WeatherModule } from './weather/weather.module';
+import { CurrencyModule } from './currency/currency.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), // rend le .env accessible partout
+    ConfigModule.forRoot({ isGlobal: true }),
+
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: buildTypeOrmConfig,
-      MenuModule,
-      AuthModule,
     }),
+
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => ({
+        store: await redisStore({
+          socket: {
+            host: config.get<string>('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+          },
+        }),
+      }),
+    }),
+
+    // Expose GET /metrics au format Prometheus
+    PrometheusModule.register({
+      path: '/metrics',
+      defaultMetrics: { enabled: true },
+    }),
+
+    AuthModule,
+    UsersModule,
+    MenuModule,
+    OrdersModule,
+    WeatherModule,
+    CurrencyModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
