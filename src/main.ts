@@ -9,8 +9,20 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api', { exclude: ['metrics'] });
+  const allowedOrigins = [
+    process.env.FRONTEND_URL?.trim(),
+    'http://localhost:5173',
+    'https://linguere.vercel.app',
+  ].filter((origin): origin is string => Boolean(origin));
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+    },
     credentials: true,
   });
   app.use(helmet());
