@@ -10,6 +10,10 @@ export const buildTypeOrmConfig = (
   username: config.get<string>('DB_USERNAME', 'root'),
   password: config.get<string>('DB_PASSWORD', ''),
   database: config.get<string>('DB_NAME', 'linguere'),
+  ssl:
+    config.get<string>('DB_SSL_MODE') === 'REQUIRED'
+      ? { rejectUnauthorized: true }
+      : undefined,
   autoLoadEntities: true,
   synchronize: true,
   logging: true,

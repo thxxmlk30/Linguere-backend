@@ -9,11 +9,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_USERNAME=root
-      - DB_PASSWORD=
-      - DB_NAME=linguere
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_SSL_MODE=${DB_SSL_MODE}
       - JWT_SECRET=change_this_secret_in_production
       - JWT_EXPIRES_IN=1d
       - REDIS_HOST=redis
@@ -32,33 +33,8 @@ services:
       # - MAIL_PASS=${MAIL_PASS}
       # - MAIL_FROM=${MAIL_FROM}
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_started
-    restart: unless-stopped
-    networks:
-      - linguere-net
-
-  # Conteneur MySQL utilisé par docker-compose / CI.
-  # En développement local SANS Docker (avec XAMPP), tu n'as pas besoin de ce
-  # service : lance juste XAMPP, mets DB_HOST=localhost et DB_PORT=3306 dans
-  # ton .env, puis `npm run start:dev`.
-  mysql:
-    image: mysql:8.0
-    container_name: linguere-mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=linguere
-    ports:
-      - "3307:3306" # 3307 côté hôte pour ne pas entrer en conflit avec XAMPP (souvent sur 3306)
-    volumes:
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
     restart: unless-stopped
     networks:
       - linguere-net
@@ -114,7 +90,6 @@ networks:
     driver: bridge
 
 volumes:
-  mysql-data:
   redis-data:
   prometheus-data:
   grafana-data:
