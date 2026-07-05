@@ -4,7 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { redisStore } from 'cache-manager-redis-yet';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { buildTypeOrmConfig } from './config/typeorm.config';
 import { AuthModule } from './auth/auth.module';
@@ -46,13 +45,8 @@ import { PaymentsModule } from './payments/payments.module';
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: config.get<string>('REDIS_HOST', 'localhost'),
-            port: config.get<number>('REDIS_PORT', 6379),
-          },
-        }),
+      useFactory: (config: ConfigService) => ({
+        ttl: config.get<number>('CACHE_TTL', 60 * 60 * 1000),
       }),
     }),
 
