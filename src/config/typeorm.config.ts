@@ -10,7 +10,7 @@ export const buildTypeOrmConfig = (
   username: config.get<string>('DB_USERNAME', 'root'),
   password: config.get<string>('DB_PASSWORD', ''),
   database: config.get<string>('DB_NAME', 'linguere'),
-  entities: [], // on ajoutera les entités au fur et à mesure
-  synchronize: true, // crée/modifie les tables automatiquement (dev seulement !)
-  logging: true, // affiche les requêtes SQL dans la console (pratique pour apprendre)
+  autoLoadEntities: true,
+  synchronize: true,
+  logging: true,
 });
