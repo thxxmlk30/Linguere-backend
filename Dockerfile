@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Installer les dépendances (cache-friendly)
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copier le code source et builder
 COPY . .
@@ -20,7 +20,7 @@ ENV NODE_ENV=production
 
 # N'installer que les dépendances de prod
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Récupérer le build compilé depuis le stage précédent
 COPY --from=builder /app/dist ./dist
