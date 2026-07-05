@@ -31,4 +31,4 @@ EXPOSE 3000
 # Utilisateur non-root pour la sécurité
 USER node
 
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "node dist/seed/seed.js && node dist/main.js"]
