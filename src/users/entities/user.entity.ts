@@ -22,7 +22,7 @@ export class User {
   fullName: string;
 
   // Nullable : un compte créé via Google OAuth n'a pas de mot de passe local
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   password: string | null;
 
@@ -33,7 +33,7 @@ export class User {
   provider: AuthProvider;
 
   // Identifiant renvoyé par le provider OAuth (ex: Google "sub")
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   providerId: string | null;
 
@@ -41,7 +41,7 @@ export class User {
   isEmailVerified: boolean;
 
   // Code à 6 chiffres pour la vérification d'identité par email
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   otpCode: string | null;
 

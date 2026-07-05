@@ -33,10 +33,10 @@ export class Staff {
   @Column({ type: 'date', nullable: true })
   hireDate: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   shift: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   zone: string | null;
 
   @Column({ type: 'enum', enum: ['active', 'break', 'off'], default: 'active' })

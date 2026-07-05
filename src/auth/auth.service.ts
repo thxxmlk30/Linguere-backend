@@ -54,13 +54,23 @@ export class AuthService {
     });
 
     const saved = await this.usersRepository.save(user);
-    await this.generateAndSendOtp(saved);
+    const otpResult = await this.generateAndSendOtp(saved);
 
-    return {
+    const response: {
+      message: string;
+      email: string;
+      devOtpCode?: string;
+    } = {
       message:
         'Compte créé. Un code de vérification à 6 chiffres a été envoyé par email.',
       email: saved.email,
     };
+
+    if (process.env.NODE_ENV !== 'production') {
+      response.devOtpCode = otpResult.code;
+    }
+
+    return response;
   }
 
   async login(dto: LoginDto) {
@@ -92,8 +102,16 @@ export class AuthService {
       return { message: 'Si ce compte existe, un code a été envoyé.' };
     }
 
-    await this.generateAndSendOtp(user);
-    return { message: 'Un code de vérification a été envoyé par email.' };
+    const otpResult = await this.generateAndSendOtp(user);
+    const response: { message: string; devOtpCode?: string } = {
+      message: 'Un code de vérification a été envoyé par email.',
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      response.devOtpCode = otpResult.code;
+    }
+
+    return response;
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
@@ -125,7 +143,16 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { email } });
 
     if (user && user.provider === AuthProvider.LOCAL) {
-      await this.generateAndSendOtp(user);
+      const otpResult = await this.generateAndSendOtp(user);
+      const response: { message: string; devOtpCode?: string } = {
+        message: 'Si ce compte existe, un code a été envoyé par email.',
+      };
+
+      if (process.env.NODE_ENV !== 'production') {
+        response.devOtpCode = otpResult.code;
+      }
+
+      return response;
     }
 
     return {
@@ -197,13 +224,14 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  private async generateAndSendOtp(user: User): Promise<void> {
+  private async generateAndSendOtp(user: User): Promise<{ code: string; delivered: boolean }> {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.otpCode = code;
     user.otpExpiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
     await this.usersRepository.save(user);
 
-    await this.mailService.sendOtpCode(user.email, user.fullName, code);
+    const result = await this.mailService.sendOtpCode(user.email, user.fullName, code);
+    return { code, delivered: result.delivered };
   }
 
   private buildAuthResponse(user: User) {

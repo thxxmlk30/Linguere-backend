@@ -17,6 +17,14 @@ export class CreateDeliveryZoneDto {
   @IsString()
   commune: string;
 
+  @ApiProperty({ example: 'Dakar' })
+  @IsString()
+  department: string;
+
+  @ApiProperty({ example: 'Plateau centre' })
+  @IsString()
+  sector: string;
+
   @ApiPropertyOptional({ example: 'Centre-ville et quartiers proches' })
   @IsOptional()
   @IsString()
@@ -26,6 +34,11 @@ export class CreateDeliveryZoneDto {
   @Type(() => Number)
   @IsNumber()
   fee: number;
+
+  @ApiProperty({ example: 25 })
+  @Type(() => Number)
+  @IsNumber()
+  etaMinutes: number;
 
   @ApiProperty({ example: 14.6937 })
   @Type(() => Number)

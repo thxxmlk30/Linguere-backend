@@ -23,7 +23,7 @@ export class MailService {
     email: string,
     fullName: string,
     code: string,
-  ): Promise<void> {
+  ): Promise<{ delivered: boolean }> {
     try {
       await this.transporter.sendMail({
         from: this.configService.get<string>(
@@ -41,10 +41,12 @@ export class MailService {
         `,
       });
       this.logger.log(`OTP email sent to ${email}`);
+      return { delivered: true };
     } catch (error) {
       this.logger.error(`Failed to send OTP email to ${email}`, error);
       // En développement, on log juste le code
       this.logger.warn(`[DEV] OTP code for ${email}: ${code}`);
+      return { delivered: false };
     }
   }
 }

@@ -27,7 +27,7 @@ export class MenuItem {
   @Column({ default: true })
   available: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   image: string | null;
 
   @Column({ default: 'any' })

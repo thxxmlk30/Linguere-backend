@@ -12,13 +12,22 @@ export class DeliveryZone {
   id: string;
 
   @Column()
+  department: string;
+
+  @Column()
   commune: string;
+
+  @Column()
+  sector: string;
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   fee: number;
+
+  @Column({ type: 'int', default: 0 })
+  etaMinutes: number;
 
   @Column({ type: 'float' })
   lat: number;

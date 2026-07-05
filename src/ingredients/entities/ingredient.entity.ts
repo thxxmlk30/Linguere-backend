@@ -29,7 +29,7 @@ export class Ingredient {
   @Column({ type: 'float', default: 0 })
   criticalStock: number;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   supplier: string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
