@@ -12,7 +12,11 @@ export const buildTypeOrmConfig = (
   database: config.get<string>('DB_NAME', 'linguere'),
   ssl:
     config.get<string>('DB_SSL_MODE') === 'REQUIRED'
-      ? { rejectUnauthorized: true }
+      ? {
+          rejectUnauthorized:
+            config.get<string>('DB_SSL_REJECT_UNAUTHORIZED', 'false') ===
+            'true',
+        }
       : undefined,
   autoLoadEntities: true,
   synchronize: true,
