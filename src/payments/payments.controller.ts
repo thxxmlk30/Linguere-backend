@@ -19,14 +19,23 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('orders/:id/stripe-session')
-  @ApiOperation({ summary: 'Creer une session de paiement Stripe pour une commande' })
-  createStripeSession(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+  @ApiOperation({
+    summary: 'Creer une session de paiement Stripe pour une commande',
+  })
+  createStripeSession(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
     return this.paymentsService.createStripeCheckout(id, user);
   }
 
   @Post('orders/:id/stripe-confirm')
   @ApiOperation({ summary: 'Confirmer le paiement Stripe d une commande' })
-  confirmStripePayment(@Param('id') id: string, @Body() body: { sessionId: string }, @CurrentUser() user: RequestUser) {
+  confirmStripePayment(
+    @Param('id') id: string,
+    @Body() body: { sessionId: string },
+    @CurrentUser() user: RequestUser,
+  ) {
     return this.paymentsService.confirmStripePayment(id, user, body.sessionId);
   }
 }

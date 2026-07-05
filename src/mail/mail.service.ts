@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
+  private transporter: Transporter;
 
   constructor(private configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
@@ -43,8 +43,8 @@ export class MailService {
       this.logger.log(`OTP email sent to ${email}`);
       return { delivered: true };
     } catch (error) {
-      this.logger.error(`Failed to send OTP email to ${email}`, error);
-      // En développement, on log juste le code
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to send OTP email to ${email}: ${message}`);
       this.logger.warn(`[DEV] OTP code for ${email}: ${code}`);
       return { delivered: false };
     }

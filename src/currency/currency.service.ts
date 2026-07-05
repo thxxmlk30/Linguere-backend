@@ -10,7 +10,26 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
 
-const RATES_CACHE_TTL = 60 * 60 * 1000; // 1h : les taux de change ne bougent pas à la minute
+type ExchangeRateApiSuccessResponse = {
+  result: 'success';
+  rates: Record<string, number>;
+};
+
+type ExchangeRateApiErrorResponse = {
+  result: string;
+  'error-type'?: string;
+};
+
+type ExchangeRateApiResponse =
+  ExchangeRateApiSuccessResponse | ExchangeRateApiErrorResponse;
+
+function isExchangeRateApiSuccessResponse(
+  data: ExchangeRateApiResponse,
+): data is ExchangeRateApiSuccessResponse {
+  return data.result === 'success';
+}
+
+const RATES_CACHE_TTL = 60 * 60 * 1000;
 
 @Injectable()
 export class CurrencyService {
@@ -22,7 +41,6 @@ export class CurrencyService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  /** Récupère tous les taux de change pour une devise de base donnée. */
   async getRates(base?: string): Promise<Record<string, number>> {
     const baseCurrency = (
       base ??
@@ -34,28 +52,30 @@ export class CurrencyService {
       await this.cacheManager.get<Record<string, number>>(cacheKey);
     if (cached) return cached;
 
-    // API gratuite, sans clé requise (open.er-api.com)
     const url = `https://open.er-api.com/v6/latest/${baseCurrency}`;
 
     try {
-      const response = await firstValueFrom(this.httpService.get(url));
+      const response = await firstValueFrom(
+        this.httpService.get<ExchangeRateApiResponse>(url),
+      );
+      const data = response.data;
 
-      if (response.data.result !== 'success') {
-        throw new Error(response.data['error-type'] ?? 'Réponse invalide');
+      if (!isExchangeRateApiSuccessResponse(data)) {
+        throw new Error(data['error-type'] ?? 'Réponse invalide');
       }
 
-      const rates = response.data.rates;
+      const rates = data.rates;
       await this.cacheManager.set(cacheKey, rates, RATES_CACHE_TTL);
       return rates;
     } catch (error) {
-      this.logger.error(`Erreur ExchangeRate API: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Erreur ExchangeRate API: ${message}`);
       throw new ServiceUnavailableException(
         'Service de conversion de devises temporairement indisponible',
       );
     }
   }
 
-  /** Convertit un montant d'une devise vers une autre. */
   async convert(from: string, to: string, amount: number) {
     const fromCurrency = from.toUpperCase();
     const toCurrency = to.toUpperCase();

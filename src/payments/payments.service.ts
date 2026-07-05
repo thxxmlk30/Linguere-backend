@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -20,7 +25,9 @@ export class PaymentsService {
     @InjectRepository(Order) private ordersRepository: Repository<Order>,
     private configService: ConfigService,
   ) {
-    const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY')?.trim();
+    const secretKey = this.configService
+      .get<string>('STRIPE_SECRET_KEY')
+      ?.trim();
     this.stripe = secretKey ? new Stripe(secretKey) : null;
   }
 
@@ -36,7 +43,9 @@ export class PaymentsService {
     await this.ordersRepository.save(order);
 
     if (!this.stripe) {
-      const checkoutUrl = this.buildFrontendUrl(`/payment/stripe/success?orderId=${order.id}&session_id=sim_${order.id}&simulated=1`);
+      const checkoutUrl = this.buildFrontendUrl(
+        `/payment/stripe/success?orderId=${order.id}&session_id=sim_${order.id}&simulated=1`,
+      );
       order.paymentSessionId = `sim_${order.id}`;
       await this.ordersRepository.save(order);
       return {
@@ -47,8 +56,12 @@ export class PaymentsService {
       };
     }
 
-    const successUrl = this.buildFrontendUrl(`/payment/stripe/success?orderId=${order.id}&session_id={CHECKOUT_SESSION_ID}`);
-    const cancelUrl = this.buildFrontendUrl(`/payment/stripe/cancel?orderId=${order.id}`);
+    const successUrl = this.buildFrontendUrl(
+      `/payment/stripe/success?orderId=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
+    );
+    const cancelUrl = this.buildFrontendUrl(
+      `/payment/stripe/cancel?orderId=${order.id}`,
+    );
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
@@ -85,7 +98,11 @@ export class PaymentsService {
     };
   }
 
-  async confirmStripePayment(orderId: string, user: AuthUser, sessionId: string) {
+  async confirmStripePayment(
+    orderId: string,
+    user: AuthUser,
+    sessionId: string,
+  ) {
     const order = await this.findAccessibleOrder(orderId, user);
 
     if (sessionId.startsWith('sim_')) {
@@ -110,7 +127,10 @@ export class PaymentsService {
     order.paymentStatus = 'paid';
     order.paidAt = new Date();
     order.paymentSessionId = session.id;
-    order.paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null;
+    order.paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
     await this.ordersRepository.save(order);
 
     return this.toResponse(order);
@@ -134,12 +154,16 @@ export class PaymentsService {
   }
 
   private buildFrontendUrl(path: string) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173').replace(/\/$/, '');
+    const frontendUrl = this.configService
+      .get<string>('FRONTEND_URL', 'http://localhost:5173')
+      .replace(/\/$/, '');
     return `${frontendUrl}${path}`;
   }
 
   private getCurrency() {
-    return (this.configService.get<string>('STRIPE_CURRENCY', 'eur') || 'eur').toLowerCase();
+    return (
+      this.configService.get<string>('STRIPE_CURRENCY', 'eur') || 'eur'
+    ).toLowerCase();
   }
 
   private toResponse(order: Order) {

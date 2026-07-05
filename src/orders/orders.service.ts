@@ -165,7 +165,9 @@ export class OrdersService {
     }
 
     if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException('Seules les commandes en attente peuvent être annulées');
+      throw new BadRequestException(
+        'Seules les commandes en attente peuvent être annulées',
+      );
     }
 
     order.status = OrderStatus.CANCELLED;
@@ -211,7 +213,9 @@ export class OrdersService {
     }
 
     if (order.status !== OrderStatus.DELIVERED) {
-      throw new BadRequestException('La commande doit etre livree avant d etre notee');
+      throw new BadRequestException(
+        'La commande doit etre livree avant d etre notee',
+      );
     }
 
     order.rating = dto.rating ?? null;

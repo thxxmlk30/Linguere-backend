@@ -224,13 +224,19 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  private async generateAndSendOtp(user: User): Promise<{ code: string; delivered: boolean }> {
+  private async generateAndSendOtp(
+    user: User,
+  ): Promise<{ code: string; delivered: boolean }> {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.otpCode = code;
     user.otpExpiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
     await this.usersRepository.save(user);
 
-    const result = await this.mailService.sendOtpCode(user.email, user.fullName, code);
+    const result = await this.mailService.sendOtpCode(
+      user.email,
+      user.fullName,
+      code,
+    );
     return { code, delivered: result.delivered };
   }
 

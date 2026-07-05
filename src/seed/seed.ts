@@ -175,7 +175,10 @@ const DELIVERY_ZONES = [
   'dkr-mermoz-sacre-coeur',
 ];
 
-async function findOrCreateUser(usersRepository: Repository<User>, payload: Partial<User> & { email: string }) {
+async function findOrCreateUser(
+  usersRepository: Repository<User>,
+  payload: Partial<User> & { email: string },
+) {
   let user = await usersRepository.findOne({ where: { email: payload.email } });
   if (!user) {
     user = usersRepository.create(payload);
@@ -184,7 +187,10 @@ async function findOrCreateUser(usersRepository: Repository<User>, payload: Part
   return user;
 }
 
-async function findOrCreateMenuItem(menuRepository: Repository<MenuItem>, payload: (typeof MENU_ITEMS)[number]) {
+async function findOrCreateMenuItem(
+  menuRepository: Repository<MenuItem>,
+  payload: (typeof MENU_ITEMS)[number],
+) {
   let item = await menuRepository.findOne({ where: { name: payload.name } });
   if (!item) {
     item = menuRepository.create(payload);
@@ -197,7 +203,9 @@ async function findOrCreateIngredient(
   ingredientsRepository: Repository<Ingredient>,
   payload: (typeof INGREDIENTS)[number],
 ) {
-  let item = await ingredientsRepository.findOne({ where: { name: payload.name } });
+  let item = await ingredientsRepository.findOne({
+    where: { name: payload.name },
+  });
   if (!item) {
     item = ingredientsRepository.create(payload);
     item = await ingredientsRepository.save(item);
@@ -205,8 +213,13 @@ async function findOrCreateIngredient(
   return item;
 }
 
-async function findOrCreateStaff(staffRepository: Repository<Staff>, payload: (typeof STAFF)[number]) {
-  let member = await staffRepository.findOne({ where: { email: payload.email } });
+async function findOrCreateStaff(
+  staffRepository: Repository<Staff>,
+  payload: (typeof STAFF)[number],
+) {
+  let member = await staffRepository.findOne({
+    where: { email: payload.email },
+  });
   if (!member) {
     member = staffRepository.create(payload);
     member = await staffRepository.save(member);
@@ -214,28 +227,24 @@ async function findOrCreateStaff(staffRepository: Repository<Staff>, payload: (t
   return member;
 }
 
-async function findOrCreateDeliveryZone(
-  zonesRepository: Repository<DeliveryZone>,
-  payload: Pick<DeliveryZone, 'id'> & Partial<DeliveryZone>,
-) {
-  let zone = await zonesRepository.findOne({ where: { id: payload.id } });
-  if (!zone) {
-    zone = zonesRepository.create(payload);
-    zone = await zonesRepository.save(zone);
-  }
-  return zone;
-}
-
 async function seed() {
   console.log('Seed Linguere: démarrage...');
   const app = await NestFactory.createApplicationContext(AppModule);
 
   const usersRepository = app.get<Repository<User>>(getRepositoryToken(User));
-  const menuRepository = app.get<Repository<MenuItem>>(getRepositoryToken(MenuItem));
-  const zonesRepository = app.get<Repository<DeliveryZone>>(getRepositoryToken(DeliveryZone));
-  const ingredientsRepository = app.get<Repository<Ingredient>>(getRepositoryToken(Ingredient));
+  const menuRepository = app.get<Repository<MenuItem>>(
+    getRepositoryToken(MenuItem),
+  );
+  const zonesRepository = app.get<Repository<DeliveryZone>>(
+    getRepositoryToken(DeliveryZone),
+  );
+  const ingredientsRepository = app.get<Repository<Ingredient>>(
+    getRepositoryToken(Ingredient),
+  );
   const staffRepository = app.get<Repository<Staff>>(getRepositoryToken(Staff));
-  const ordersRepository = app.get<Repository<Order>>(getRepositoryToken(Order));
+  const ordersRepository = app.get<Repository<Order>>(
+    getRepositoryToken(Order),
+  );
 
   const adminPassword = await bcrypt.hash('Admin123!', 10);
   const customerPassword = await bcrypt.hash('Client123!', 10);
@@ -299,11 +308,17 @@ async function seed() {
     }
   }
 
-  const existingCustomerOrders = await ordersRepository.count({ where: { userId: customer.id } });
+  const existingCustomerOrders = await ordersRepository.count({
+    where: { userId: customer.id },
+  });
   if (existingCustomerOrders === 0 && menuItems.length >= 4) {
     const chef = await staffRepository.findOne({ where: { role: 'chef' } });
-    const courier = await staffRepository.findOne({ where: { role: 'delivery' } });
-    const zone = await zonesRepository.findOne({ where: { id: DELIVERY_ZONES[0] } });
+    const courier = await staffRepository.findOne({
+      where: { role: 'delivery' },
+    });
+    const zone = await zonesRepository.findOne({
+      where: { id: DELIVERY_ZONES[0] },
+    });
 
     const dineInOrder = ordersRepository.create({
       userId: customer.id,

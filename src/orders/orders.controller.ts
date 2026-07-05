@@ -75,7 +75,11 @@ export class OrdersController {
 
   @Patch(':id/rate')
   @ApiOperation({ summary: 'Noter une commande livrée (client ou admin)' })
-  rate(@Param('id') id: string, @CurrentUser() user: RequestUser, @Body() dto: RateOrderDto) {
+  rate(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RateOrderDto,
+  ) {
     return this.ordersService.rate(id, user, dto);
   }
 
@@ -88,7 +92,9 @@ export class OrdersController {
 
   @Patch(':id/assign-courier')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Affecter ou retirer un livreur (admin uniquement)' })
+  @ApiOperation({
+    summary: 'Affecter ou retirer un livreur (admin uniquement)',
+  })
   assignCourier(@Param('id') id: string, @Body() dto: AssignOrderStaffDto) {
     return this.ordersService.assignCourier(id, dto);
   }

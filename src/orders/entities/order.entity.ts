@@ -72,7 +72,11 @@ export class Order {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   totalAmount: number;
 
-  @Column({ type: 'enum', enum: ['unpaid', 'pending', 'paid', 'failed'], default: 'unpaid' })
+  @Column({
+    type: 'enum',
+    enum: ['unpaid', 'pending', 'paid', 'failed'],
+    default: 'unpaid',
+  })
   paymentStatus: 'unpaid' | 'pending' | 'paid' | 'failed';
 
   @Column({ type: 'varchar', nullable: true })
