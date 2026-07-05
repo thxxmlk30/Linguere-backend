@@ -60,7 +60,7 @@ jobs:
           cache: "npm"
 
       - name: Installer les dépendances
-        run: npm ci
+        run: npm install
 
       - name: Lint
         run: npm run lint --if-present
