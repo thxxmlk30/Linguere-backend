@@ -1,5 +1,6 @@
 export enum MealCategory {
-  BREAKFAST = 'petit-dejeuner',
-  LUNCH = 'dejeuner',
-  DINNER = 'diner',
+  ENTREE = 'entree',
+  PLAT = 'plat',
+  DESSERT = 'dessert',
+  BOISSON = 'boisson',
 }

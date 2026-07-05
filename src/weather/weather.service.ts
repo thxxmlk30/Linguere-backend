@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -15,7 +19,9 @@ export class WeatherService {
   async getWeather(city: string) {
     const apiKey = this.configService.get<string>('OPENWEATHER_API_KEY');
     if (!apiKey) {
-      throw new ServiceUnavailableException('API key for weather service is not configured');
+      throw new ServiceUnavailableException(
+        'API key for weather service is not configured',
+      );
     }
 
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;

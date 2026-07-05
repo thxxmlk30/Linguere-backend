@@ -17,6 +17,11 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
 
+interface RequestUser {
+  id: string;
+  role: Role;
+}
+
 @ApiTags('orders')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,7 +31,7 @@ export class OrdersController {
 
   @Post()
   @ApiOperation({ summary: 'Créer une commande (client connecté)' })
-  create(@CurrentUser() user, @Body() dto: CreateOrderDto) {
+  create(@CurrentUser() user: RequestUser, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(user.id, dto);
   }
 
@@ -34,19 +39,27 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Lister les commandes (les siennes, ou toutes si admin)',
   })
-  findAll(@CurrentUser() user) {
+  findAll(@CurrentUser() user: RequestUser) {
     return this.ordersService.findAllForUser(user);
+  }
+
+  @Get('my-orders')
+  @ApiOperation({ summary: 'Mes commandes (client connecté)' })
+  myOrders(@CurrentUser() user: RequestUser) {
+    return this.ordersService.findMine(user.id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: "Détail d'une commande" })
-  findOne(@Param('id') id: string, @CurrentUser() user) {
+  findOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.ordersService.findOne(id, user);
   }
 
   @Patch(':id/status')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Changer le statut d\'une commande (admin uniquement)' })
+  @ApiOperation({
+    summary: "Changer le statut d'une commande (admin uniquement)",
+  })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
     return this.ordersService.updateStatus(id, dto.status);
   }

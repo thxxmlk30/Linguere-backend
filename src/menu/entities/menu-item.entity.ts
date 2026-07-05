@@ -16,7 +16,7 @@ export class MenuItem {
   name: string;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description: string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
@@ -28,7 +28,13 @@ export class MenuItem {
   available: boolean;
 
   @Column({ nullable: true })
-  imageUrl: string;
+  image: string | null;
+
+  @Column({ default: 'any' })
+  meal: string;
+
+  @Column({ type: 'int', nullable: true })
+  prepTimeMinutes: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

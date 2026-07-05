@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
@@ -12,8 +12,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     configService: ConfigService,
     @InjectRepository(User) private usersRepository: Repository<User>,
   ) {
+    // passport-jwt's Strategy typing is too loose under this lint setup.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: (request: { headers?: { authorization?: string } }) => {
+        const authorization = request.headers?.authorization;
+
+        if (!authorization) {
+          return null;
+        }
+
+        const [scheme, token] = authorization.split(' ');
+        return scheme === 'Bearer' ? token : null;
+      },
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
     });
@@ -29,6 +40,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Ce qui est retourné ici est injecté dans request.user
-    return { id: user.id, email: user.email, role: user.role, fullName: user.fullName };
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+    };
   }
 }

@@ -14,9 +14,11 @@ describe('MenuService', () => {
     name: 'Thiéboudienne',
     description: 'Riz au poisson',
     price: 3500,
-    category: MealCategory.LUNCH,
+    category: MealCategory.PLAT,
     available: true,
-    imageUrl: null,
+    image: null,
+    meal: 'lunch',
+    prepTimeMinutes: 30,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -65,7 +67,7 @@ describe('MenuService', () => {
       });
     });
 
-    it('devrait lever NotFoundException si le plat n\'existe pas', async () => {
+    it("devrait lever NotFoundException si le plat n'existe pas", async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
       await expect(service.findOne('inconnu')).rejects.toThrow(
@@ -103,7 +105,7 @@ describe('MenuService', () => {
       const result = await service.create({
         name: 'Thiéboudienne',
         price: 3500,
-        category: MealCategory.LUNCH,
+        category: MealCategory.PLAT,
       });
 
       expect(result).toEqual(mockMenuItem);

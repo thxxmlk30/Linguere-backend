@@ -19,8 +19,8 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 
-@ApiTags('menu')
-@Controller('menu')
+@ApiTags('menu-items')
+@Controller('menu-items')
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 

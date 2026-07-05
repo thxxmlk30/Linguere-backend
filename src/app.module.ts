@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { redisStore } from 'cache-manager-redis-yet';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { buildTypeOrmConfig } from './config/typeorm.config';
@@ -11,6 +13,10 @@ import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
 import { WeatherModule } from './weather/weather.module';
 import { CurrencyModule } from './currency/currency.module';
+import { DeliveryZonesModule } from './delivery-zones/delivery-zones.module';
+import { IngredientsModule } from './ingredients/ingredients.module';
+import { StaffModule } from './staff/staff.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -20,6 +26,19 @@ import { CurrencyModule } from './currency/currency.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: buildTypeOrmConfig,
+    }),
+
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.get<number>('THROTTLE_TTL', 60000),
+            limit: config.get<number>('THROTTLE_LIMIT', 100),
+          },
+        ],
+      }),
     }),
 
     CacheModule.registerAsync({
@@ -48,6 +67,11 @@ import { CurrencyModule } from './currency/currency.module';
     OrdersModule,
     WeatherModule,
     CurrencyModule,
+    DeliveryZonesModule,
+    IngredientsModule,
+    StaffModule,
+    ReportsModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -30,6 +30,33 @@ export class Order {
   })
   items: OrderItem[];
 
+  @Column({ type: 'enum', enum: ['dine_in', 'delivery'], default: 'dine_in' })
+  serviceType: 'dine_in' | 'delivery';
+
+  @Column({ type: 'int', nullable: true })
+  tableNumber: number | null;
+
+  @Column({ nullable: true })
+  deliveryZoneId: string | null;
+
+  @Column({ nullable: true })
+  deliveryAddress: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  deliveryNotes: string | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  deliveryFee: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  subtotalAmount: number;
+
+  @Column({ nullable: true })
+  customerName: string | null;
+
+  @Column({ nullable: true })
+  customerPhone: string | null;
+
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   totalAmount: number;
 

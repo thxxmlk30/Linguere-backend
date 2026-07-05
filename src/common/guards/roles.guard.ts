@@ -27,9 +27,11 @@ export class RolesGuard implements CanActivate {
       return true; // pas de restriction de rôle sur cette route
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const { user } = context.switchToHttp().getRequest<{
+      user?: { role?: Role };
+    }>();
 
-    if (!user || !requiredRoles.includes(user.role)) {
+    if (!user || !user.role || !requiredRoles.includes(user.role)) {
       throw new ForbiddenException(
         `Accès refusé : rôle requis parmi [${requiredRoles.join(', ')}]`,
       );

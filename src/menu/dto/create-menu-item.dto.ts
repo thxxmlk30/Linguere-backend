@@ -26,7 +26,7 @@ export class CreateMenuItemDto {
   @Min(0, { message: 'Le prix ne peut pas être négatif' })
   price: number;
 
-  @ApiProperty({ enum: MealCategory, example: MealCategory.LUNCH })
+  @ApiProperty({ enum: MealCategory, example: MealCategory.PLAT })
   @IsEnum(MealCategory)
   category: MealCategory;
 
@@ -38,5 +38,16 @@ export class CreateMenuItemDto {
   @ApiPropertyOptional({ example: 'https://.../thieb.jpg' })
   @IsOptional()
   @IsString()
-  imageUrl?: string;
+  image?: string;
+
+  @ApiPropertyOptional({ example: 'lunch' })
+  @IsOptional()
+  @IsString()
+  meal?: string;
+
+  @ApiPropertyOptional({ example: 25 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  prepTimeMinutes?: number;
 }

@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Role } from '../common/enums/role.enum';
 import { AuthProvider } from '../common/enums/auth-provider.enum';
 import { MailService } from '../mail/mail.service';
@@ -45,16 +46,14 @@ export class AuthService {
 
     const user = this.usersRepository.create({
       email: dto.email,
-      fullName: dto.fullName,
+      fullName: dto.name,
       password: hashedPassword,
-      role: dto.role ?? Role.CLIENT,
+      role: Role.CLIENT,
       provider: AuthProvider.LOCAL,
       isEmailVerified: false,
     });
 
     const saved = await this.usersRepository.save(user);
-
-    // Envoi immédiat d'un code OTP pour valider l'email dès l'inscription
     await this.generateAndSendOtp(saved);
 
     return {
@@ -69,41 +68,41 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    if (!user || !user.password || !(await bcrypt.compare(dto.password, user.password))) {
+    if (
+      !user ||
+      !user.password ||
+      !(await bcrypt.compare(dto.password, user.password))
+    ) {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
     if (!user.isEmailVerified) {
       throw new UnauthorizedException(
-        "Email non vérifié. Demandez un nouveau code via /auth/otp/request.",
+        'Email non vérifié. Demandez un nouveau code via /auth/otp/request.',
       );
     }
 
     return this.buildAuthResponse(user);
   }
 
-  /** Génère un nouveau code OTP et l'envoie par email (inscription ou renvoi). */
   async requestOtp(email: string) {
     const user = await this.usersRepository.findOne({ where: { email } });
 
     if (!user) {
-      // On ne révèle pas si l'email existe ou non (évite l'énumération de comptes)
       return { message: 'Si ce compte existe, un code a été envoyé.' };
     }
 
     await this.generateAndSendOtp(user);
-
     return { message: 'Un code de vérification a été envoyé par email.' };
   }
 
-  /** Vérifie le code OTP et active le compte ; retourne un JWT si succès. */
   async verifyOtp(dto: VerifyOtpDto) {
     const user = await this.usersRepository.findOne({
       where: { email: dto.email },
     });
 
     if (!user || !user.otpCode || !user.otpExpiresAt) {
-      throw new BadRequestException("Aucun code en attente pour cet email");
+      throw new BadRequestException('Aucun code en attente pour cet email');
     }
 
     if (user.otpExpiresAt.getTime() < Date.now()) {
@@ -122,7 +121,61 @@ export class AuthService {
     return this.buildAuthResponse(saved);
   }
 
-  /** Authentifie ou crée un utilisateur à partir d'un profil Google OAuth2. */
+  async forgotPassword(email: string) {
+    const user = await this.usersRepository.findOne({ where: { email } });
+
+    if (user && user.provider === AuthProvider.LOCAL) {
+      await this.generateAndSendOtp(user);
+    }
+
+    return {
+      message: 'Si ce compte existe, un code a été envoyé par email.',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const user = await this.usersRepository.findOne({
+      where: { email: dto.email },
+    });
+
+    if (!user || !user.otpCode || !user.otpExpiresAt) {
+      throw new BadRequestException('Code invalide ou expiré');
+    }
+
+    if (user.otpExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Code expiré, refaites une demande');
+    }
+
+    if (user.otpCode !== dto.code) {
+      throw new BadRequestException('Code invalide ou expiré');
+    }
+
+    user.password = await bcrypt.hash(dto.newPassword, 10);
+    user.otpCode = null;
+    user.otpExpiresAt = null;
+    user.isEmailVerified = true;
+    await this.usersRepository.save(user);
+
+    return {
+      message: 'Mot de passe réinitialisé. Vous pouvez vous connecter.',
+    };
+  }
+
+  async me(userId: string) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    return {
+      id: user.id,
+      name: user.fullName,
+      email: user.email,
+      role: user.role,
+    };
+  }
+
   async validateOAuthLogin(profile: GoogleProfile) {
     let user = await this.usersRepository.findOne({
       where: { email: profile.email },
@@ -136,7 +189,7 @@ export class AuthService {
         role: Role.CLIENT,
         provider: AuthProvider.GOOGLE,
         providerId: profile.providerId,
-        isEmailVerified: true, // Google a déjà vérifié l'email
+        isEmailVerified: true,
       });
       user = await this.usersRepository.save(user);
     }
@@ -145,7 +198,7 @@ export class AuthService {
   }
 
   private async generateAndSendOtp(user: User): Promise<void> {
-    const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 chiffres
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.otpCode = code;
     user.otpExpiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
     await this.usersRepository.save(user);
@@ -160,11 +213,9 @@ export class AuthService {
       accessToken: this.jwtService.sign(payload),
       user: {
         id: user.id,
+        name: user.fullName,
         email: user.email,
-        fullName: user.fullName,
         role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        provider: user.provider,
       },
     };
   }

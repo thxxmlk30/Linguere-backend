@@ -25,11 +25,13 @@ export class CurrencyService {
   /** Récupère tous les taux de change pour une devise de base donnée. */
   async getRates(base?: string): Promise<Record<string, number>> {
     const baseCurrency = (
-      base ?? this.configService.get<string>('EXCHANGE_RATE_BASE_CURRENCY', 'XOF')
+      base ??
+      this.configService.get<string>('EXCHANGE_RATE_BASE_CURRENCY', 'XOF')
     ).toUpperCase();
 
     const cacheKey = `currency:rates:${baseCurrency}`;
-    const cached = await this.cacheManager.get<Record<string, number>>(cacheKey);
+    const cached =
+      await this.cacheManager.get<Record<string, number>>(cacheKey);
     if (cached) return cached;
 
     // API gratuite, sans clé requise (open.er-api.com)

@@ -7,6 +7,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
+interface RequestUser {
+  id: string;
+}
+
 @ApiTags('users')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -22,8 +26,8 @@ export class UsersController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Obtenir le profil de l\'utilisateur connecté' })
-  getProfile(@CurrentUser() user) {
+  @ApiOperation({ summary: "Obtenir le profil de l'utilisateur connecté" })
+  getProfile(@CurrentUser() user: RequestUser) {
     return this.usersService.findById(user.id);
   }
 

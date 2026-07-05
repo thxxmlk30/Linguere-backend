@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import { Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { MenuItem } from '../menu/entities/menu-item.entity';
+import { DeliveryZone } from '../delivery-zones/entities/delivery-zone.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Role } from '../common/enums/role.enum';
 import { OrderStatus } from '../common/enums/order-status.enum';
@@ -22,11 +24,13 @@ export class OrdersService {
   constructor(
     @InjectRepository(Order) private ordersRepository: Repository<Order>,
     @InjectRepository(MenuItem) private menuRepository: Repository<MenuItem>,
+    @InjectRepository(DeliveryZone)
+    private zonesRepository: Repository<DeliveryZone>,
   ) {}
 
-  async create(userId: string, dto: CreateOrderDto): Promise<Order> {
+  async create(userId: string, dto: CreateOrderDto) {
     const items: OrderItem[] = [];
-    let totalAmount = 0;
+    let subtotalAmount = 0;
 
     for (const line of dto.items) {
       const menuItem = await this.menuRepository.findOne({
@@ -39,37 +43,79 @@ export class OrdersService {
         );
       }
 
+      if (!menuItem.available) {
+        throw new BadRequestException(
+          `"${menuItem.name}" n'est plus disponible`,
+        );
+      }
+
       const orderItem = new OrderItem();
       orderItem.menuItemId = menuItem.id;
       orderItem.quantity = line.quantity;
       orderItem.unitPrice = menuItem.price;
       items.push(orderItem);
 
-      totalAmount += Number(menuItem.price) * line.quantity;
+      subtotalAmount += Number(menuItem.price) * line.quantity;
+    }
+
+    let deliveryFee = 0;
+    if (dto.serviceType === 'delivery') {
+      const zone = await this.zonesRepository.findOne({
+        where: { id: dto.deliveryZoneId },
+      });
+
+      if (!zone) {
+        throw new NotFoundException('Zone de livraison introuvable');
+      }
+
+      deliveryFee = Number(zone.fee);
     }
 
     const order = this.ordersRepository.create({
       userId,
       items,
-      totalAmount,
+      serviceType: dto.serviceType,
+      tableNumber: dto.tableNumber ?? null,
+      deliveryZoneId: dto.deliveryZoneId ?? null,
+      deliveryAddress: dto.deliveryAddress ?? null,
+      deliveryNotes: dto.deliveryNotes ?? null,
+      customerName: dto.customerName ?? null,
+      customerPhone: dto.customerPhone ?? null,
+      deliveryFee,
+      subtotalAmount,
+      totalAmount: subtotalAmount + deliveryFee,
       status: OrderStatus.PENDING,
     });
 
-    return this.ordersRepository.save(order);
+    const saved = await this.ordersRepository.save(order);
+    return this.toResponse(saved);
   }
 
-  async findAllForUser(user: AuthUser): Promise<Order[]> {
-    // Un admin voit toutes les commandes, un client ne voit que les siennes
+  async findAllForUser(user: AuthUser) {
     if (user.role === Role.ADMIN) {
-      return this.ordersRepository.find({ order: { createdAt: 'DESC' } });
+      const orders = await this.ordersRepository.find({
+        order: { createdAt: 'DESC' },
+      });
+      return orders.map((order) => this.toResponse(order));
     }
-    return this.ordersRepository.find({
+
+    const orders = await this.ordersRepository.find({
       where: { userId: user.id },
       order: { createdAt: 'DESC' },
     });
+    return orders.map((order) => this.toResponse(order));
   }
 
-  async findOne(id: string, user: AuthUser): Promise<Order> {
+  async findMine(userId: string) {
+    const orders = await this.ordersRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    return orders.map((order) => this.toResponse(order));
+  }
+
+  async findOne(id: string, user: AuthUser) {
     const order = await this.ordersRepository.findOne({ where: { id } });
 
     if (!order) {
@@ -80,15 +126,45 @@ export class OrdersService {
       throw new ForbiddenException("Vous n'avez pas accès à cette commande");
     }
 
-    return order;
+    return this.toResponse(order);
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
+  async updateStatus(id: string, status: OrderStatus) {
     const order = await this.ordersRepository.findOne({ where: { id } });
+
     if (!order) {
       throw new NotFoundException(`Commande introuvable (id: ${id})`);
     }
+
     order.status = status;
-    return this.ordersRepository.save(order);
+    const saved = await this.ordersRepository.save(order);
+    return this.toResponse(saved);
+  }
+
+  private toResponse(order: Order) {
+    return {
+      id: order.id,
+      serviceType: order.serviceType,
+      tableNumber: order.tableNumber ?? undefined,
+      deliveryZoneId: order.deliveryZoneId ?? undefined,
+      deliveryAddress: order.deliveryAddress ?? undefined,
+      deliveryNotes: order.deliveryNotes ?? undefined,
+      deliveryFee: Number(order.deliveryFee ?? 0),
+      customerName: order.customerName ?? order.user?.fullName,
+      customerPhone: order.customerPhone ?? undefined,
+      items: (order.items ?? []).map((item) => ({
+        menuItemId: item.menuItemId,
+        name: item.menuItem?.name,
+        quantity: item.quantity,
+        price: Number(item.unitPrice),
+      })),
+      status: order.status,
+      subtotalAmount: Number(order.subtotalAmount ?? 0),
+      totalAmount: Number(order.totalAmount ?? 0),
+      createdAt: order.createdAt?.toISOString(),
+      userId: order.userId,
+      userName: order.user?.fullName,
+      userEmail: order.user?.email,
+    };
   }
 }

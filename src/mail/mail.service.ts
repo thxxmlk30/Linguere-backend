@@ -19,10 +19,17 @@ export class MailService {
     });
   }
 
-  async sendOtpCode(email: string, fullName: string, code: string): Promise<void> {
+  async sendOtpCode(
+    email: string,
+    fullName: string,
+    code: string,
+  ): Promise<void> {
     try {
       await this.transporter.sendMail({
-        from: this.configService.get<string>('SMTP_FROM', 'noreply@linguere.com'),
+        from: this.configService.get<string>(
+          'SMTP_FROM',
+          'noreply@linguere.com',
+        ),
         to: email,
         subject: 'Votre code de vérification - Linguere',
         html: `

@@ -9,7 +9,7 @@ export class CurrencyController {
 
   @Get('rates')
   @ApiOperation({
-    summary: "Taux de change actuels pour une devise de base (ex: XOF)",
+    summary: 'Taux de change actuels pour une devise de base (ex: XOF)',
   })
   getRates(@Query('base') base?: string) {
     return this.currencyService.getRates(base);

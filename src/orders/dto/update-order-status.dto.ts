@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { OrderStatus } from '../../common/enums/order-status.enum';
 
 export class UpdateOrderStatusDto {
-  @ApiProperty({ enum: OrderStatus, example: OrderStatus.CONFIRMED })
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.PENDING })
   @IsEnum(OrderStatus)
   status: OrderStatus;
 }
