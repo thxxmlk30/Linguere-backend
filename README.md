@@ -64,7 +64,7 @@ Le backend autorise aussi :
 - `src/staff/` : gestion du personnel.
 - `src/delivery-zones/` : zones et frais de livraison.
 - `src/reports/` : statistiques admin.
-- `src/payments/` : paiement Stripe / simulation.
+- `src/payments/` : paiement Stripe.
 - `src/weather/` : météo.
 - `src/currency/` : taux de change.
 - `src/mail/` : emails transactionnels.
@@ -129,4 +129,3 @@ Linguere est organisé en 4 blocs :
 2. **Backend** : logique métier et API.
 3. **Base de données** : stockage des données.
 4. **Services externes** : mail, Google, Stripe, météo, monitoring.
-

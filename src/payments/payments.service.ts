@@ -38,22 +38,21 @@ export class PaymentsService {
       throw new BadRequestException('Impossible de payer une commande annulee');
     }
 
+    const totalAmount = Number(order.totalAmount);
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      throw new BadRequestException(
+        'Le montant de la commande doit etre superieur a zero pour Stripe',
+      );
+    }
+
     order.paymentStatus = 'pending';
     order.paymentProvider = 'stripe';
     await this.ordersRepository.save(order);
 
     if (!this.stripe) {
-      const checkoutUrl = this.buildFrontendUrl(
-        `/payment/stripe/success?orderId=${order.id}&session_id=sim_${order.id}&simulated=1`,
+      throw new BadRequestException(
+        'Stripe n est pas configure: la redirection de paiement est indisponible',
       );
-      order.paymentSessionId = `sim_${order.id}`;
-      await this.ordersRepository.save(order);
-      return {
-        provider: 'simulation',
-        sessionId: order.paymentSessionId,
-        checkoutUrl,
-        paymentStatus: order.paymentStatus,
-      };
     }
 
     const successUrl = this.buildFrontendUrl(
@@ -63,32 +62,47 @@ export class PaymentsService {
       `/payment/stripe/cancel?orderId=${order.id}`,
     );
 
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      customer_email: order.user?.email,
-      metadata: {
-        orderId: order.id,
-        userId: order.userId,
-      },
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: this.getCurrency(),
-            unit_amount: Math.round(Number(order.totalAmount) * 100),
-            product_data: {
-              name: `Commande Linguere #${order.id.slice(0, 8)}`,
-              description: `${order.items.length} article(s)`,
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await this.stripe.checkout.sessions.create({
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        customer_email: order.user?.email,
+        metadata: {
+          orderId: order.id,
+          userId: order.userId,
+        },
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: this.getCurrency(),
+              unit_amount: this.toStripeUnitAmount(totalAmount),
+              product_data: {
+                name: `Commande Linguere #${order.id.slice(0, 8)}`,
+                description: `${order.items.length} article(s)`,
+              },
             },
           },
-        },
-      ],
-    });
+        ],
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur Stripe inconnue';
+      throw new BadRequestException(
+        `Stripe a refuse la creation de la page de paiement: ${message}`,
+      );
+    }
 
     order.paymentSessionId = session.id;
     await this.ordersRepository.save(order);
+
+    if (!session.url) {
+      throw new BadRequestException(
+        'Stripe n a pas renvoye de page de paiement',
+      );
+    }
 
     return {
       provider: 'stripe',
@@ -104,15 +118,6 @@ export class PaymentsService {
     sessionId: string,
   ) {
     const order = await this.findAccessibleOrder(orderId, user);
-
-    if (sessionId.startsWith('sim_')) {
-      order.paymentStatus = 'paid';
-      order.paidAt = new Date();
-      order.paymentSessionId = sessionId;
-      order.paymentIntentId = null;
-      await this.ordersRepository.save(order);
-      return this.toResponse(order);
-    }
 
     if (!this.stripe) {
       throw new BadRequestException('Stripe n est pas configure');
@@ -161,9 +166,44 @@ export class PaymentsService {
   }
 
   private getCurrency() {
-    return (
-      this.configService.get<string>('STRIPE_CURRENCY', 'eur') || 'eur'
-    ).toLowerCase();
+    const configuredCurrency = (
+      this.configService.get<string>('STRIPE_CURRENCY', 'xof') || 'xof'
+    )
+      .trim()
+      .toLowerCase();
+
+    if (configuredCurrency === 'cfa') {
+      return 'xof';
+    }
+
+    return configuredCurrency;
+  }
+
+  private toStripeUnitAmount(amount: number) {
+    const currency = this.getCurrency();
+    const zeroDecimalCurrencies = new Set([
+      'bif',
+      'clp',
+      'djf',
+      'gnf',
+      'jpy',
+      'kmf',
+      'krw',
+      'mga',
+      'pyg',
+      'rwf',
+      'ugx',
+      'vnd',
+      'vuv',
+      'xaf',
+      'xcd',
+      'xof',
+      'xpf',
+    ]);
+
+    return zeroDecimalCurrencies.has(currency)
+      ? Math.round(amount)
+      : Math.round(amount * 100);
   }
 
   private toResponse(order: Order) {
