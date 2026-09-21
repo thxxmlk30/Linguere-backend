@@ -21,6 +21,8 @@ import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { StaffRole } from '../common/enums/staff-role.enum';
 import { AssignOrderStaffDto } from './dto/assign-order-staff.dto';
 import { RateOrderDto } from './dto/rate-order.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { toSkipTake } from '../common/utils/pagination.util';
 
 interface AuthUser {
   id: string;
@@ -220,19 +222,15 @@ export class OrdersService {
     }
   }
 
-  async findAllForUser(user: AuthUser) {
-    if (user.role === Role.ADMIN) {
-      const orders = await this.ordersRepository.find({
-        order: { createdAt: 'DESC' },
-      });
-      return orders.map((order) => this.toResponse(order));
-    }
-
-    const orders = await this.ordersRepository.find({
-      where: { userId: user.id },
+  async findAllForUser(user: AuthUser, pagination?: PaginationQueryDto) {
+    const where = user.role === Role.ADMIN ? {} : { userId: user.id };
+    const [orders, total] = await this.ordersRepository.findAndCount({
+      where,
       order: { createdAt: 'DESC' },
+      ...toSkipTake(pagination),
     });
-    return orders.map((order) => this.toResponse(order));
+
+    return { data: orders.map((order) => this.toResponse(order)), total };
   }
 
   async findMine(userId: string) {

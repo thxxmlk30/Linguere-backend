@@ -8,6 +8,8 @@ import { Repository } from 'typeorm';
 import { Staff } from './entities/staff.entity';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginatedResult, toSkipTake } from '../common/utils/pagination.util';
 
 @Injectable()
 export class StaffService {
@@ -16,8 +18,14 @@ export class StaffService {
     private staffRepository: Repository<Staff>,
   ) {}
 
-  findAll() {
-    return this.staffRepository.find({ order: { name: 'ASC' } });
+  async findAll(
+    pagination?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Staff>> {
+    const [data, total] = await this.staffRepository.findAndCount({
+      order: { name: 'ASC' },
+      ...toSkipTake(pagination),
+    });
+    return { data, total };
   }
 
   async findOne(id: string) {

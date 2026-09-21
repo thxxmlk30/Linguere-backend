@@ -15,6 +15,8 @@ import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { CreateMenuItemDto, RecipeItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import { MealCategory } from '../common/enums/meal-category.enum';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginatedResult, toSkipTake } from '../common/utils/pagination.util';
 
 const MENU_CACHE_KEY = 'menu:all';
 const MENU_CACHE_TTL = 60; // secondes
@@ -32,24 +34,31 @@ export class MenuService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async findAll(category?: MealCategory): Promise<MenuItem[]> {
-    // Le cache ne s'applique que sur la liste complète (cas le plus fréquent
-    // pour le dashboard / la carte du restaurant)
-    if (!category) {
+  async findAll(
+    category?: MealCategory,
+    pagination?: PaginationQueryDto,
+  ): Promise<PaginatedResult<MenuItem>> {
+    const skipTake = toSkipTake(pagination);
+
+    // Le cache ne s'applique que sur la liste complète non paginée (cas le
+    // plus fréquent pour le dashboard / la carte du restaurant)
+    if (!category && !skipTake) {
       const cached = await this.cacheManager.get<MenuItem[]>(MENU_CACHE_KEY);
-      if (cached) return cached;
+      if (cached) return { data: cached, total: cached.length };
 
       const items = await this.menuRepository.find({
         order: { category: 'ASC', name: 'ASC' },
       });
       await this.cacheManager.set(MENU_CACHE_KEY, items, MENU_CACHE_TTL * 1000);
-      return items;
+      return { data: items, total: items.length };
     }
 
-    return this.menuRepository.find({
-      where: { category },
-      order: { name: 'ASC' },
+    const [data, total] = await this.menuRepository.findAndCount({
+      where: category ? { category } : {},
+      order: { category: 'ASC', name: 'ASC' },
+      ...skipTake,
     });
+    return { data, total };
   }
 
   async findOne(id: string): Promise<MenuItem> {

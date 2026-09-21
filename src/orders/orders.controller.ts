@@ -6,14 +6,18 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { AssignOrderStaffDto } from './dto/assign-order-staff.dto';
 import { RateOrderDto } from './dto/rate-order.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -38,8 +42,17 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Lister les commandes (les siennes, ou toutes si admin)',
   })
-  findAll(@CurrentUser() user: RequestUser) {
-    return this.ordersService.findAllForUser(user);
+  async findAll(
+    @CurrentUser() user: RequestUser,
+    @Query() pagination: PaginationQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, total } = await this.ordersService.findAllForUser(
+      user,
+      pagination,
+    );
+    res.set('X-Total-Count', String(total));
+    return data;
   }
 
   @Get('my-orders')
