@@ -15,7 +15,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_SSL_MODE=${DB_SSL_MODE}
-      - JWT_SECRET=change_this_secret_in_production
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET doit etre defini (voir .env.example)}
       - JWT_EXPIRES_IN=1d
       - REDIS_HOST=redis
       - REDIS_PORT=6379

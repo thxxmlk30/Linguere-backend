@@ -2,9 +2,11 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -105,6 +107,16 @@ export class AuthController {
     return this.authService.me(user.id);
   }
 
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Révoquer le token courant' })
+  logout(@Headers('authorization') authorization?: string) {
+    const token = authorization?.split(' ')[1] ?? '';
+    return this.authService.logout(token);
+  }
+
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Démarrer la connexion via Google OAuth2' })
@@ -119,13 +131,27 @@ export class AuthController {
     @Req() req: { user: GoogleProfile },
     @Res() res: Response,
   ) {
-    const { accessToken } = await this.authService.validateOAuthLogin(req.user);
+    const authResponse = await this.authService.validateOAuthLogin(req.user);
+
+    // Le JWT ne transite jamais en clair dans l'URL (historique navigateur,
+    // header Referer, logs serveur) : on redirige avec un code a usage unique
+    // que le frontend echange immediatement contre le vrai token.
+    const code = await this.authService.createGoogleExchangeCode(authResponse);
 
     const frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
       'http://localhost:5173',
     );
 
-    return res.redirect(`${frontendUrl}/oauth-callback?token=${accessToken}`);
+    return res.redirect(`${frontendUrl}/oauth-callback?code=${code}`);
+  }
+
+  @Post('google/exchange')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Échanger un code d'authentification Google contre un token",
+  })
+  exchangeGoogleCode(@Query('code') code: string) {
+    return this.authService.consumeGoogleExchangeCode(code);
   }
 }
