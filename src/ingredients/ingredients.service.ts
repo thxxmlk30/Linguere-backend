@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Ingredient } from './entities/ingredient.entity';
+import { MenuItemIngredient } from '../menu/entities/menu-item-ingredient.entity';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
 
@@ -10,10 +15,21 @@ export class IngredientsService {
   constructor(
     @InjectRepository(Ingredient)
     private ingredientsRepository: Repository<Ingredient>,
+    @InjectRepository(MenuItemIngredient)
+    private recipeRepository: Repository<MenuItemIngredient>,
   ) {}
 
   findAll() {
     return this.ingredientsRepository.find({ order: { name: 'ASC' } });
+  }
+
+  async findLowStock() {
+    const all = await this.ingredientsRepository.find({
+      order: { name: 'ASC' },
+    });
+    return all.filter(
+      (ingredient) => ingredient.currentStock <= ingredient.reorderThreshold,
+    );
   }
 
   async findOne(id: string) {
@@ -59,6 +75,16 @@ export class IngredientsService {
 
   async remove(id: string) {
     const ingredient = await this.findOne(id);
+
+    const referencedByRecipes = await this.recipeRepository.count({
+      where: { ingredientId: id },
+    });
+    if (referencedByRecipes > 0) {
+      throw new ConflictException(
+        `"${ingredient.name}" est utilisé dans la recette d'au moins un plat et ne peut pas être supprimé`,
+      );
+    }
+
     await this.ingredientsRepository.remove(ingredient);
   }
 }

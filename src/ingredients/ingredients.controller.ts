@@ -31,6 +31,15 @@ export class IngredientsController {
     return this.ingredientsService.findAll();
   }
 
+  @Get('low-stock')
+  @ApiOperation({
+    summary:
+      'Lister les ingrédients sous leur seuil de réapprovisionnement (admin)',
+  })
+  findLowStock() {
+    return this.ingredientsService.findLowStock();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Détail d’un ingrédient (admin)' })
   findOne(@Param('id') id: string) {

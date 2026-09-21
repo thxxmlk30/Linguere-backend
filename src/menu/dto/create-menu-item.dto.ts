@@ -1,14 +1,30 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MealCategory } from '../../common/enums/meal-category.enum';
+
+export class RecipeItemDto {
+  @ApiProperty({ example: 'uuid-de-l-ingredient' })
+  @IsString()
+  ingredientId: string;
+
+  @ApiProperty({ example: 0.3, description: 'Quantité consommée par plat' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  quantityRequired: number;
+}
 
 export class CreateMenuItemDto {
   @ApiProperty({ example: 'Thiéboudienne' })
@@ -50,4 +66,15 @@ export class CreateMenuItemDto {
   @IsNumber()
   @Min(0)
   prepTimeMinutes?: number;
+
+  @ApiPropertyOptional({
+    type: [RecipeItemDto],
+    description:
+      'Ingrédients consommés par ce plat (optionnel). Un tableau vide efface la recette existante.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RecipeItemDto)
+  recipe?: RecipeItemDto[];
 }

@@ -1,14 +1,16 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { MenuItem } from '../menu/entities/menu-item.entity';
+import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { DeliveryZone } from '../delivery-zones/entities/delivery-zone.entity';
 import { Staff } from '../staff/entities/staff.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -89,33 +91,133 @@ export class OrdersService {
       deliveryFee = Number(zone.fee);
     }
 
-    const order = this.ordersRepository.create({
-      userId,
-      items,
-      serviceType: dto.serviceType,
-      tableNumber: dto.tableNumber ?? null,
-      deliveryZoneId: dto.deliveryZoneId ?? null,
-      deliveryAddress: dto.deliveryAddress ?? null,
-      deliveryNotes: dto.deliveryNotes ?? null,
-      customerName: dto.customerName ?? null,
-      customerPhone: dto.customerPhone ?? null,
-      assignedChefId: null,
-      assignedChefName: null,
-      courierId: null,
-      courierName: null,
-      paymentStatus: PaymentStatus.UNPAID,
-      paymentProvider: null,
-      paymentSessionId: null,
-      paymentIntentId: null,
-      paidAt: null,
-      deliveryFee,
-      subtotalAmount,
-      totalAmount: subtotalAmount + deliveryFee,
-      status: OrderStatus.PENDING,
-    });
+    // Transaction : verifier et decrementer le stock d'ingredients requis
+    // par la recette de chaque plat, et ne creer la commande que si tout le
+    // stock est disponible (rollback complet sinon).
+    const saved = await this.ordersRepository.manager.transaction(
+      async (manager) => {
+        await this.reserveIngredientStock(dto.items, manager);
 
-    const saved = await this.ordersRepository.save(order);
+        const order = manager.create(Order, {
+          userId,
+          items,
+          serviceType: dto.serviceType,
+          tableNumber: dto.tableNumber ?? null,
+          deliveryZoneId: dto.deliveryZoneId ?? null,
+          deliveryAddress: dto.deliveryAddress ?? null,
+          deliveryNotes: dto.deliveryNotes ?? null,
+          customerName: dto.customerName ?? null,
+          customerPhone: dto.customerPhone ?? null,
+          assignedChefId: null,
+          assignedChefName: null,
+          courierId: null,
+          courierName: null,
+          paymentStatus: PaymentStatus.UNPAID,
+          paymentProvider: null,
+          paymentSessionId: null,
+          paymentIntentId: null,
+          paidAt: null,
+          deliveryFee,
+          subtotalAmount,
+          totalAmount: subtotalAmount + deliveryFee,
+          status: OrderStatus.PENDING,
+        });
+
+        return manager.save(Order, order);
+      },
+    );
+
     return this.toResponse(saved);
+  }
+
+  /**
+   * Agrege, pour un ensemble de lignes {menuItemId, quantity}, la quantite
+   * totale requise par ingredient d'apres la recette de chaque plat. Les
+   * plats sans recette configuree n'imposent aucune contrainte de stock.
+   */
+  private async computeIngredientRequirements(
+    lines: Array<{ menuItemId: string; quantity: number }>,
+    manager: EntityManager,
+  ): Promise<Map<string, { ingredient: Ingredient; required: number }>> {
+    const requirements = new Map<
+      string,
+      { ingredient: Ingredient; required: number }
+    >();
+
+    for (const line of lines) {
+      const menuItem = await manager.findOne(MenuItem, {
+        where: { id: line.menuItemId },
+        relations: { recipe: { ingredient: true } },
+      });
+
+      if (!menuItem?.recipe?.length) {
+        continue;
+      }
+
+      for (const recipeLine of menuItem.recipe) {
+        const additional = recipeLine.quantityRequired * line.quantity;
+        const existing = requirements.get(recipeLine.ingredientId);
+
+        if (existing) {
+          existing.required += additional;
+        } else {
+          requirements.set(recipeLine.ingredientId, {
+            ingredient: recipeLine.ingredient,
+            required: additional,
+          });
+        }
+      }
+    }
+
+    return requirements;
+  }
+
+  private async reserveIngredientStock(
+    lines: Array<{ menuItemId: string; quantity: number }>,
+    manager: EntityManager,
+  ) {
+    const requirements = await this.computeIngredientRequirements(
+      lines,
+      manager,
+    );
+    if (requirements.size === 0) {
+      return;
+    }
+
+    const shortages: string[] = [];
+    for (const { ingredient, required } of requirements.values()) {
+      if (ingredient.currentStock < required) {
+        shortages.push(
+          `${ingredient.name} (disponible: ${ingredient.currentStock}${ingredient.unit}, requis: ${required}${ingredient.unit})`,
+        );
+      }
+    }
+
+    if (shortages.length > 0) {
+      throw new ConflictException(
+        `Stock insuffisant pour préparer cette commande : ${shortages.join(', ')}`,
+      );
+    }
+
+    for (const { ingredient, required } of requirements.values()) {
+      ingredient.currentStock -= required;
+      await manager.save(Ingredient, ingredient);
+    }
+  }
+
+  private async restoreIngredientStock(
+    lines: Array<{ menuItemId: string; quantity: number }>,
+    manager: EntityManager,
+  ) {
+    const requirements = await this.computeIngredientRequirements(
+      lines,
+      manager,
+    );
+
+    for (const { ingredient, required } of requirements.values()) {
+      ingredient.currentStock += required;
+      await manager.save(Ingredient, ingredient);
+    }
   }
 
   async findAllForUser(user: AuthUser) {
@@ -202,8 +304,22 @@ export class OrdersService {
       );
     }
 
-    order.status = OrderStatus.CANCELLED;
-    const saved = await this.ordersRepository.save(order);
+    // Le stock reserve a la creation est restitue : les ingredients n'ont
+    // pas ete physiquement utilises puisque la commande est annulee.
+    const saved = await this.ordersRepository.manager.transaction(
+      async (manager) => {
+        await this.restoreIngredientStock(
+          order.items.map((item) => ({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+          })),
+          manager,
+        );
+        order.status = OrderStatus.CANCELLED;
+        return manager.save(Order, order);
+      },
+    );
+
     return this.toResponse(saved);
   }
 

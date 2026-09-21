@@ -2,10 +2,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { MealCategory } from '../../common/enums/meal-category.enum';
+import { MenuItemIngredient } from './menu-item-ingredient.entity';
 
 @Entity('menu_items')
 export class MenuItem {
@@ -41,4 +43,11 @@ export class MenuItem {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // Composition du plat en ingredients (optionnelle). Non eager : chargee
+  // explicitement la ou elle sert (edition admin, calcul de stock).
+  @OneToMany(() => MenuItemIngredient, (recipe) => recipe.menuItem, {
+    cascade: true,
+  })
+  recipe: MenuItemIngredient[];
 }

@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { IngredientsService } from './ingredients.service';
 import { Ingredient } from './entities/ingredient.entity';
+import { MenuItemIngredient } from '../menu/entities/menu-item-ingredient.entity';
 import { IngredientUnit } from '../common/enums/ingredient-unit.enum';
 
 describe('IngredientsService', () => {
@@ -14,6 +15,10 @@ describe('IngredientsService', () => {
     create: jest.fn((data: Partial<Ingredient>) => data),
     save: jest.fn((data: Ingredient) => Promise.resolve(data)),
     remove: jest.fn(),
+  };
+
+  const mockRecipeRepository = {
+    count: jest.fn(),
   };
 
   const ingredient: Ingredient = {
@@ -42,10 +47,47 @@ describe('IngredientsService', () => {
           provide: getRepositoryToken(Ingredient),
           useValue: mockRepository,
         },
+        {
+          provide: getRepositoryToken(MenuItemIngredient),
+          useValue: mockRecipeRepository,
+        },
       ],
     }).compile();
 
     service = module.get<IngredientsService>(IngredientsService);
+  });
+
+  describe('findLowStock', () => {
+    it('ne retourne que les ingrédients sous leur seuil de réapprovisionnement', async () => {
+      mockRepository.find.mockResolvedValue([
+        { ...ingredient, id: 'a', currentStock: 100, reorderThreshold: 60 },
+        { ...ingredient, id: 'b', currentStock: 10, reorderThreshold: 60 },
+      ]);
+
+      const result = await service.findLowStock();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('b');
+    });
+  });
+
+  describe('remove', () => {
+    it('supprime un ingrédient non utilisé dans une recette', async () => {
+      mockRepository.findOne.mockResolvedValue(ingredient);
+      mockRecipeRepository.count.mockResolvedValue(0);
+
+      await service.remove('ing-1');
+
+      expect(mockRepository.remove).toHaveBeenCalledWith(ingredient);
+    });
+
+    it('refuse de supprimer un ingrédient utilisé dans une recette', async () => {
+      mockRepository.findOne.mockResolvedValue(ingredient);
+      mockRecipeRepository.count.mockResolvedValue(2);
+
+      await expect(service.remove('ing-1')).rejects.toThrow(ConflictException);
+      expect(mockRepository.remove).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {

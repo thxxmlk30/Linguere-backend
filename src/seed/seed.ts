@@ -14,6 +14,7 @@ import { StaffStatus } from '../common/enums/staff-status.enum';
 import { DeliveryZone } from '../delivery-zones/entities/delivery-zone.entity';
 import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { MenuItem } from '../menu/entities/menu-item.entity';
+import { MenuItemIngredient } from '../menu/entities/menu-item-ingredient.entity';
 import { Order } from '../orders/entities/order.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { Staff } from '../staff/entities/staff.entity';
@@ -172,6 +173,24 @@ const STAFF = [
   },
 ];
 
+// Recette indicative de chaque plat, pour démontrer le décrément de stock
+// automatique à la commande (feature/ingredient-stock-consumption).
+const RECIPES: Record<
+  string,
+  Array<{ ingredientName: string; quantityRequired: number }>
+> = {
+  Thiéboudienne: [
+    { ingredientName: 'Riz brisé', quantityRequired: 0.3 },
+    { ingredientName: 'Poisson', quantityRequired: 0.25 },
+    { ingredientName: 'Oignons', quantityRequired: 0.1 },
+  ],
+  'Yassa Poulet': [
+    { ingredientName: 'Poulet', quantityRequired: 0.35 },
+    { ingredientName: 'Oignons', quantityRequired: 0.15 },
+  ],
+  Bissap: [{ ingredientName: 'Bissap sec', quantityRequired: 0.05 }],
+};
+
 const DELIVERY_ZONES = [
   'dkr-plateau-centre',
   'dkr-medina-tilene',
@@ -260,6 +279,9 @@ async function seed() {
   const ordersRepository = app.get<Repository<Order>>(
     getRepositoryToken(Order),
   );
+  const recipeRepository = app.get<Repository<MenuItemIngredient>>(
+    getRepositoryToken(MenuItemIngredient),
+  );
 
   const adminPassword = await bcrypt.hash('Admin123!', 10);
   const customerPassword = await bcrypt.hash('Client123!', 10);
@@ -293,8 +315,36 @@ async function seed() {
     menuItems.push(await findOrCreateMenuItem(menuRepository, item));
   }
 
+  const ingredientsByName = new Map<string, Ingredient>();
   for (const ingredient of INGREDIENTS) {
-    await findOrCreateIngredient(ingredientsRepository, ingredient);
+    const saved = await findOrCreateIngredient(
+      ingredientsRepository,
+      ingredient,
+    );
+    ingredientsByName.set(saved.name, saved);
+  }
+
+  for (const menuItem of menuItems) {
+    const recipeLines = RECIPES[menuItem.name];
+    if (!recipeLines) continue;
+
+    const alreadySeeded = await recipeRepository.count({
+      where: { menuItemId: menuItem.id },
+    });
+    if (alreadySeeded > 0) continue;
+
+    for (const line of recipeLines) {
+      const ingredient = ingredientsByName.get(line.ingredientName);
+      if (!ingredient) continue;
+
+      await recipeRepository.save(
+        recipeRepository.create({
+          menuItemId: menuItem.id,
+          ingredientId: ingredient.id,
+          quantityRequired: line.quantityRequired,
+        }),
+      );
+    }
   }
 
   for (const member of STAFF) {
