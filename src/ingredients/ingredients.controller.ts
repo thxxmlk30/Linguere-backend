@@ -30,7 +30,8 @@ export class IngredientsController {
   constructor(private readonly ingredientsService: IngredientsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lister les ingrédients (admin)' })
+  @Roles(Role.ADMIN, Role.CHEF)
+  @ApiOperation({ summary: 'Lister les ingrédients (admin, chef en lecture)' })
   async findAll(
     @Query() pagination: PaginationQueryDto,
     @Res({ passthrough: true }) res: Response,
@@ -41,9 +42,10 @@ export class IngredientsController {
   }
 
   @Get('low-stock')
+  @Roles(Role.ADMIN, Role.CHEF)
   @ApiOperation({
     summary:
-      'Lister les ingrédients sous leur seuil de réapprovisionnement (admin)',
+      'Lister les ingrédients sous leur seuil de réapprovisionnement (admin, chef en lecture)',
   })
   findLowStock() {
     return this.ingredientsService.findLowStock();
