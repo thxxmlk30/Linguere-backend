@@ -11,6 +11,14 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { User } from '../users/entities/user.entity';
 import { MailModule } from '../mail/mail.module';
 
+// passport-google-oauth20 lève une exception synchrone a l'instanciation
+// si clientID/clientSecret sont vides : sans ce garde, toute l'application
+// (y compris le script de seed) refuse de demarrer des que ces variables
+// ne sont pas configurees, meme si personne n'utilise la connexion Google.
+const googleOAuthConfigured = Boolean(
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+);
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
@@ -29,7 +37,11 @@ import { MailModule } from '../mail/mail.module';
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, GoogleStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    ...(googleOAuthConfigured ? [GoogleStrategy] : []),
+  ],
   controllers: [AuthController],
   exports: [JwtModule],
 })

@@ -28,6 +28,7 @@ describe('MenuService', () => {
 
   const mockRepository = {
     find: jest.fn(),
+    findAndCount: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
@@ -111,7 +112,7 @@ describe('MenuService', () => {
 
       const result = await service.findAll();
 
-      expect(result).toEqual([mockMenuItem]);
+      expect(result).toEqual({ data: [mockMenuItem], total: 1 });
       expect(mockRepository.find).not.toHaveBeenCalled();
     });
 
@@ -121,8 +122,20 @@ describe('MenuService', () => {
 
       const result = await service.findAll();
 
-      expect(result).toEqual([mockMenuItem]);
+      expect(result).toEqual({ data: [mockMenuItem], total: 1 });
       expect(mockCacheManager.set).toHaveBeenCalled();
+    });
+
+    it('pagine sans utiliser le cache quand page/limit sont fournis', async () => {
+      mockRepository.findAndCount.mockResolvedValue([[mockMenuItem], 5]);
+
+      const result = await service.findAll(undefined, { page: 1, limit: 1 });
+
+      expect(result).toEqual({ data: [mockMenuItem], total: 5 });
+      expect(mockCacheManager.get).not.toHaveBeenCalled();
+      expect(mockRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 1 }),
+      );
     });
   });
 

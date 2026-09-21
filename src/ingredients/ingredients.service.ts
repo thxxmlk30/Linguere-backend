@@ -9,6 +9,8 @@ import { Ingredient } from './entities/ingredient.entity';
 import { MenuItemIngredient } from '../menu/entities/menu-item-ingredient.entity';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginatedResult, toSkipTake } from '../common/utils/pagination.util';
 
 @Injectable()
 export class IngredientsService {
@@ -19,8 +21,14 @@ export class IngredientsService {
     private recipeRepository: Repository<MenuItemIngredient>,
   ) {}
 
-  findAll() {
-    return this.ingredientsRepository.find({ order: { name: 'ASC' } });
+  async findAll(
+    pagination?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Ingredient>> {
+    const [data, total] = await this.ingredientsRepository.findAndCount({
+      order: { name: 'ASC' },
+      ...toSkipTake(pagination),
+    });
+    return { data, total };
   }
 
   async findLowStock() {

@@ -4,11 +4,12 @@ import { Logger } from '@nestjs/common';
 import { MailService } from './mail.service';
 
 const mockSendMail = jest.fn();
+const mockCreateTransport = jest.fn(() => ({ sendMail: mockSendMail }));
 
 jest.mock('nodemailer', () => ({
   __esModule: true,
   default: {
-    createTransport: jest.fn(() => ({ sendMail: mockSendMail })),
+    createTransport: (...args: unknown[]) => mockCreateTransport(...args),
   },
 }));
 
@@ -81,5 +82,41 @@ describe('MailService', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('123456'));
     process.env.NODE_ENV = 'test';
     warnSpy.mockRestore();
+  });
+
+  describe('secure selon le port SMTP', () => {
+    async function buildServiceWithPort(port: number) {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          MailService,
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string, fallback?: unknown) =>
+                key === 'SMTP_PORT' ? port : fallback,
+              ),
+            },
+          },
+        ],
+      }).compile();
+
+      return module.get<MailService>(MailService);
+    }
+
+    it('active TLS implicite (secure:true) sur le port 465', async () => {
+      await buildServiceWithPort(465);
+
+      expect(mockCreateTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 465, secure: true }),
+      );
+    });
+
+    it('désactive TLS implicite (secure:false) sur le port 587 (STARTTLS)', async () => {
+      await buildServiceWithPort(587);
+
+      expect(mockCreateTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 587, secure: false }),
+      );
+    });
   });
 });
