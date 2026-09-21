@@ -4,7 +4,9 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MenuService } from './menu.service';
 import { MenuItem } from './entities/menu-item.entity';
+import { MenuItemIngredient } from './entities/menu-item-ingredient.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
+import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { MealCategory } from '../common/enums/meal-category.enum';
 
 describe('MenuService', () => {
@@ -36,6 +38,16 @@ describe('MenuService', () => {
     count: jest.fn(),
   };
 
+  const mockRecipeRepository = {
+    delete: jest.fn(),
+    create: jest.fn((data: unknown) => data),
+    save: jest.fn(),
+  };
+
+  const mockIngredientsRepository = {
+    find: jest.fn(),
+  };
+
   const mockCacheManager = {
     get: jest.fn(),
     set: jest.fn(),
@@ -52,6 +64,14 @@ describe('MenuService', () => {
         {
           provide: getRepositoryToken(OrderItem),
           useValue: mockOrderItemsRepository,
+        },
+        {
+          provide: getRepositoryToken(MenuItemIngredient),
+          useValue: mockRecipeRepository,
+        },
+        {
+          provide: getRepositoryToken(Ingredient),
+          useValue: mockIngredientsRepository,
         },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
       ],
@@ -110,6 +130,7 @@ describe('MenuService', () => {
     it('devrait créer un plat et invalider le cache', async () => {
       mockRepository.create.mockReturnValue(mockMenuItem);
       mockRepository.save.mockResolvedValue(mockMenuItem);
+      mockRepository.findOne.mockResolvedValue(mockMenuItem);
 
       const result = await service.create({
         name: 'Thiéboudienne',
@@ -119,6 +140,41 @@ describe('MenuService', () => {
 
       expect(result).toEqual(mockMenuItem);
       expect(mockCacheManager.del).toHaveBeenCalledWith('menu:all');
+    });
+
+    it('persiste la recette fournie et valide les ingrédients référencés', async () => {
+      mockRepository.create.mockReturnValue(mockMenuItem);
+      mockRepository.save.mockResolvedValue(mockMenuItem);
+      mockRepository.findOne.mockResolvedValue(mockMenuItem);
+      mockIngredientsRepository.find.mockResolvedValue([{ id: 'ing-1' }]);
+
+      await service.create({
+        name: 'Thiéboudienne',
+        price: 3500,
+        category: MealCategory.PLAT,
+        recipe: [{ ingredientId: 'ing-1', quantityRequired: 0.3 }],
+      });
+
+      expect(mockRecipeRepository.delete).toHaveBeenCalledWith({
+        menuItemId: mockMenuItem.id,
+      });
+      expect(mockRecipeRepository.save).toHaveBeenCalled();
+    });
+
+    it('refuse une recette référençant un ingrédient inconnu', async () => {
+      mockRepository.create.mockReturnValue(mockMenuItem);
+      mockRepository.save.mockResolvedValue(mockMenuItem);
+      mockIngredientsRepository.find.mockResolvedValue([]);
+
+      await expect(
+        service.create({
+          name: 'Thiéboudienne',
+          price: 3500,
+          category: MealCategory.PLAT,
+          recipe: [{ ingredientId: 'inconnu', quantityRequired: 0.3 }],
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRecipeRepository.delete).not.toHaveBeenCalled();
     });
   });
 

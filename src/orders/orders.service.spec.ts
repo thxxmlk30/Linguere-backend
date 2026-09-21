@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,12 +22,23 @@ import { MealCategory } from '../common/enums/meal-category.enum';
 describe('OrdersService', () => {
   let service: OrdersService;
 
+  const mockManager = {
+    findOne: jest.fn(),
+    create: jest.fn((_entity: unknown, data: unknown) => data),
+    save: jest.fn((_entity: unknown, data: unknown) => Promise.resolve(data)),
+  };
+
   const mockOrdersRepository = {
     create: jest.fn((data: Partial<Order>) => data as Order),
     save: jest.fn((data: Order) => Promise.resolve(data)),
     find: jest.fn(),
     findOne: jest.fn(),
     softRemove: jest.fn(),
+    manager: {
+      transaction: jest.fn((cb: (manager: typeof mockManager) => unknown) =>
+        cb(mockManager),
+      ),
+    },
   };
 
   const mockMenuRepository = { findOne: jest.fn() };
@@ -126,6 +138,13 @@ describe('OrdersService', () => {
       (data: Partial<Order>) => data as Order,
     );
     mockOrdersRepository.save.mockImplementation((data: Order) =>
+      Promise.resolve(data),
+    );
+    mockManager.findOne.mockResolvedValue(null);
+    mockManager.create.mockImplementation(
+      (_entity: unknown, data: unknown) => data,
+    );
+    mockManager.save.mockImplementation((_entity: unknown, data: unknown) =>
       Promise.resolve(data),
     );
 
@@ -429,6 +448,115 @@ describe('OrdersService', () => {
 
       expect(result.courierId).toBe('staff-2');
       expect(result.courierName).toBe('Cheikh Fall');
+    });
+  });
+
+  describe('gestion du stock d’ingrédients (recette)', () => {
+    function menuItemWithRecipe(
+      recipe: Array<{
+        ingredientId: string;
+        quantityRequired: number;
+        currentStock: number;
+      }>,
+    ) {
+      return {
+        ...menuItem,
+        recipe: recipe.map((line) => ({
+          ingredientId: line.ingredientId,
+          quantityRequired: line.quantityRequired,
+          ingredient: {
+            id: line.ingredientId,
+            name: line.ingredientId,
+            currentStock: line.currentStock,
+            unit: 'kg',
+          },
+        })),
+      };
+    }
+
+    it('décrémente le stock requis à la création de la commande', async () => {
+      mockMenuRepository.findOne.mockResolvedValue(menuItem);
+      mockManager.findOne.mockResolvedValue(
+        menuItemWithRecipe([
+          { ingredientId: 'riz', quantityRequired: 0.5, currentStock: 10 },
+        ]),
+      );
+
+      await service.create('client-1', {
+        serviceType: ServiceType.DINE_IN,
+        tableNumber: 1,
+        items: [{ menuItemId: 'menu-1', quantity: 3 }],
+      });
+
+      const savedIngredient = mockManager.save.mock.calls.find(
+        (call) => call[1]?.id === 'riz',
+      )?.[1];
+      // 3 plats x 0.5 requis = 1.5 consommé sur un stock de 10
+      expect(savedIngredient.currentStock).toBe(8.5);
+    });
+
+    it('agrège la consommation du même ingrédient sur plusieurs lignes de commande', async () => {
+      mockMenuRepository.findOne.mockResolvedValue(menuItem);
+      mockManager.findOne.mockResolvedValue(
+        menuItemWithRecipe([
+          { ingredientId: 'oignon', quantityRequired: 0.2, currentStock: 5 },
+        ]),
+      );
+
+      await service.create('client-1', {
+        serviceType: ServiceType.DINE_IN,
+        tableNumber: 1,
+        items: [
+          { menuItemId: 'menu-1', quantity: 2 },
+          { menuItemId: 'menu-1', quantity: 3 },
+        ],
+      });
+
+      const savedIngredient = mockManager.save.mock.calls.find(
+        (call) => call[1]?.id === 'oignon',
+      )?.[1];
+      // (2 + 3) plats x 0.2 = 1.0 consommé au total
+      expect(savedIngredient.currentStock).toBe(4);
+    });
+
+    it('rejette la commande sans décrémenter si le stock est insuffisant', async () => {
+      mockMenuRepository.findOne.mockResolvedValue(menuItem);
+      mockManager.findOne.mockResolvedValue(
+        menuItemWithRecipe([
+          { ingredientId: 'poisson', quantityRequired: 5, currentStock: 2 },
+        ]),
+      );
+
+      await expect(
+        service.create('client-1', {
+          serviceType: ServiceType.DINE_IN,
+          tableNumber: 1,
+          items: [{ menuItemId: 'menu-1', quantity: 1 }],
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockManager.save).not.toHaveBeenCalled();
+    });
+
+    it('restitue le stock consommé quand la commande est annulée', async () => {
+      mockManager.findOne.mockResolvedValue(
+        menuItemWithRecipe([
+          { ingredientId: 'riz', quantityRequired: 0.5, currentStock: 8.5 },
+        ]),
+      );
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({
+          status: OrderStatus.PENDING,
+          items: [{ menuItemId: 'menu-1', quantity: 3 } as never],
+        }),
+      );
+
+      await service.cancel('order-1', clientUser);
+
+      const savedIngredient = mockManager.save.mock.calls.find(
+        (call) => call[1]?.id === 'riz',
+      )?.[1];
+      expect(savedIngredient.currentStock).toBe(10);
     });
   });
 });
