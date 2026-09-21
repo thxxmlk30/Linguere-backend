@@ -3,8 +3,11 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { Staff } from './entities/staff.entity';
+import { User } from '../users/entities/user.entity';
+import { MailService } from '../mail/mail.service';
 import { StaffRole } from '../common/enums/staff-role.enum';
 import { StaffStatus } from '../common/enums/staff-status.enum';
+import { Role } from '../common/enums/role.enum';
 
 describe('StaffService', () => {
   let service: StaffService;
@@ -22,6 +25,8 @@ describe('StaffService', () => {
     status: StaffStatus.ACTIVE,
     createdAt: new Date(),
     updatedAt: new Date(),
+    userId: null,
+    user: null,
   };
 
   const mockRepository = {
@@ -32,13 +37,34 @@ describe('StaffService', () => {
     remove: jest.fn(),
   };
 
+  const mockUsersRepository = {
+    findOne: jest.fn(),
+    create: jest.fn((data: Partial<User>) => data as User),
+    save: jest.fn((data: User) =>
+      Promise.resolve({ ...data, id: 'user-new-1' }),
+    ),
+  };
+
+  const mockMailService: Partial<MailService> = {
+    sendStaffCredentials: jest.fn().mockResolvedValue({ delivered: true }),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    process.env.NODE_ENV = 'test';
+    mockUsersRepository.create.mockImplementation(
+      (data: Partial<User>) => data as User,
+    );
+    mockUsersRepository.save.mockImplementation((data: User) =>
+      Promise.resolve({ ...data, id: 'user-new-1' }),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StaffService,
         { provide: getRepositoryToken(Staff), useValue: mockRepository },
+        { provide: getRepositoryToken(User), useValue: mockUsersRepository },
+        { provide: MailService, useValue: mockMailService },
       ],
     }).compile();
 
@@ -118,6 +144,57 @@ describe('StaffService', () => {
       await service.remove('staff-1');
 
       expect(mockRepository.remove).toHaveBeenCalledWith(staff);
+    });
+  });
+
+  describe('provisionAccount', () => {
+    it('crée un compte lié avec le rôle dérivé du rôle staff', async () => {
+      mockRepository.findOne.mockResolvedValue({ ...staff, userId: null });
+      mockUsersRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.provisionAccount('staff-1', {});
+
+      expect(mockUsersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ email: staff.email, role: Role.CHEF }),
+      );
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-new-1' }),
+      );
+      expect(result.email).toBe(staff.email);
+      expect(mockMailService.sendStaffCredentials).toHaveBeenCalled();
+    });
+
+    it('inclut devPassword hors production', async () => {
+      mockRepository.findOne.mockResolvedValue({ ...staff, userId: null });
+      mockUsersRepository.findOne.mockResolvedValue(null);
+      process.env.NODE_ENV = 'development';
+
+      const result = await service.provisionAccount('staff-1', {});
+
+      expect(result.devPassword).toBeDefined();
+      process.env.NODE_ENV = 'test';
+    });
+
+    it('refuse si un accès existe déjà (409)', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...staff,
+        userId: 'user-existing',
+      });
+
+      await expect(service.provisionAccount('staff-1', {})).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockUsersRepository.save).not.toHaveBeenCalled();
+    });
+
+    it("refuse si l'email est déjà utilisé par un compte non lié (409)", async () => {
+      mockRepository.findOne.mockResolvedValue({ ...staff, userId: null });
+      mockUsersRepository.findOne.mockResolvedValue({ id: 'other-user' });
+
+      await expect(service.provisionAccount('staff-1', {})).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockUsersRepository.save).not.toHaveBeenCalled();
     });
   });
 });

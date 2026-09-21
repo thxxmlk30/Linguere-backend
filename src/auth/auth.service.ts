@@ -13,6 +13,7 @@ import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { User } from '../users/entities/user.entity';
+import { Staff } from '../staff/entities/staff.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -37,6 +38,7 @@ interface GoogleProfile {
 export class AuthService {
   constructor(
     @InjectRepository(User) private usersRepository: Repository<User>,
+    @InjectRepository(Staff) private staffRepository: Repository<Staff>,
     private jwtService: JwtService,
     private mailService: MailService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -204,11 +206,16 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
+    const staff = await this.staffRepository.findOne({
+      where: { userId: user.id },
+    });
+
     return {
       id: user.id,
       name: user.fullName,
       email: user.email,
       role: user.role,
+      staffId: staff?.id ?? null,
     };
   }
 
@@ -240,7 +247,13 @@ export class AuthService {
    */
   async createGoogleExchangeCode(authResponse: {
     accessToken: string;
-    user: { id: string; name: string; email: string; role: Role };
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: Role;
+      staffId: string | null;
+    };
   }): Promise<string> {
     const code = randomUUID();
     await this.cacheManager.set(
@@ -255,7 +268,13 @@ export class AuthService {
     const key = `${GOOGLE_EXCHANGE_PREFIX}${code}`;
     const authResponse = await this.cacheManager.get<{
       accessToken: string;
-      user: { id: string; name: string; email: string; role: Role };
+      user: {
+        id: string;
+        name: string;
+        email: string;
+        role: Role;
+        staffId: string | null;
+      };
     }>(key);
 
     if (!authResponse) {
@@ -310,11 +329,17 @@ export class AuthService {
     return { code, delivered: result.delivered };
   }
 
-  private buildAuthResponse(user: User) {
+  private async buildAuthResponse(user: User) {
+    const staff = await this.staffRepository.findOne({
+      where: { userId: user.id },
+    });
+    const staffId = staff?.id ?? null;
+
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      staffId,
       jti: randomUUID(),
     };
 
@@ -325,6 +350,7 @@ export class AuthService {
         name: user.fullName,
         email: user.email,
         role: user.role,
+        staffId,
       },
     };
   }

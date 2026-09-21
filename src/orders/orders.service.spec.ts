@@ -33,6 +33,7 @@ describe('OrdersService', () => {
     save: jest.fn((data: Order) => Promise.resolve(data)),
     find: jest.fn(),
     findOne: jest.fn(),
+    findAndCount: jest.fn(),
     softRemove: jest.fn(),
     manager: {
       transaction: jest.fn((cb: (manager: typeof mockManager) => unknown) =>
@@ -45,8 +46,29 @@ describe('OrdersService', () => {
   const mockZonesRepository = { findOne: jest.fn() };
   const mockStaffRepository = { findOne: jest.fn() };
 
-  const adminUser = { id: 'admin-1', role: Role.ADMIN };
-  const clientUser = { id: 'client-1', role: Role.CLIENT };
+  const adminUser = { id: 'admin-1', role: Role.ADMIN, staffId: null };
+  const clientUser = { id: 'client-1', role: Role.CLIENT, staffId: null };
+  const chefUser = { id: 'chef-user-1', role: Role.CHEF, staffId: 'staff-1' };
+  const otherChefUser = {
+    id: 'chef-user-2',
+    role: Role.CHEF,
+    staffId: 'staff-2',
+  };
+  const waiterUser = {
+    id: 'waiter-user-1',
+    role: Role.WAITER,
+    staffId: 'staff-3',
+  };
+  const deliveryUser = {
+    id: 'delivery-user-1',
+    role: Role.DELIVERY,
+    staffId: 'staff-4',
+  };
+  const otherDeliveryUser = {
+    id: 'delivery-user-2',
+    role: Role.DELIVERY,
+    staffId: 'staff-5',
+  };
 
   const menuItem: MenuItem = {
     id: 'menu-1',
@@ -255,9 +277,92 @@ describe('OrdersService', () => {
         service.findOne('order-1', adminUser),
       ).resolves.toBeDefined();
     });
+
+    it('un chef assigné peut voir la commande', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ assignedChefId: 'staff-1' }),
+      );
+
+      await expect(service.findOne('order-1', chefUser)).resolves.toBeDefined();
+    });
+
+    it('un chef non assigné ne peut pas voir la commande', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ assignedChefId: 'staff-1' }),
+      );
+
+      await expect(service.findOne('order-1', otherChefUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('un serveur peut voir toute commande sur place', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ serviceType: ServiceType.DINE_IN }),
+      );
+
+      await expect(
+        service.findOne('order-1', waiterUser),
+      ).resolves.toBeDefined();
+    });
+
+    it('un serveur ne peut pas voir une commande en livraison', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ serviceType: ServiceType.DELIVERY }),
+      );
+
+      await expect(service.findOne('order-1', waiterUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
   });
 
-  describe('updateStatus (machine à états)', () => {
+  describe('findAllForUser (filtrage par rôle)', () => {
+    beforeEach(() => {
+      mockOrdersRepository.findAndCount.mockResolvedValue([[], 0]);
+    });
+
+    it('un chef ne voit que les commandes qui lui sont assignées', async () => {
+      await service.findAllForUser(chefUser);
+
+      expect(mockOrdersRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { assignedChefId: 'staff-1' },
+        }),
+      );
+    });
+
+    it('un livreur ne voit que les commandes qui lui sont assignées', async () => {
+      await service.findAllForUser(deliveryUser);
+
+      expect(mockOrdersRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { courierId: 'staff-4' } }),
+      );
+    });
+
+    it('un serveur voit toutes les commandes sur place', async () => {
+      await service.findAllForUser(waiterUser);
+
+      expect(mockOrdersRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { serviceType: ServiceType.DINE_IN },
+        }),
+      );
+    });
+
+    it('un chef sans fiche staff liée ne voit aucune commande', async () => {
+      const result = await service.findAllForUser({
+        id: 'chef-orphan',
+        role: Role.CHEF,
+        staffId: null,
+      });
+
+      expect(result).toEqual({ data: [], total: 0 });
+      expect(mockOrdersRepository.findAndCount).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateStatus (machine à états, point de vue admin)', () => {
     it('autorise pending -> preparing', async () => {
       mockOrdersRepository.findOne.mockResolvedValue(
         buildOrder({ status: OrderStatus.PENDING }),
@@ -266,6 +371,7 @@ describe('OrdersService', () => {
       const result = await service.updateStatus(
         'order-1',
         OrderStatus.PREPARING,
+        adminUser,
       );
       expect(result.status).toBe(OrderStatus.PREPARING);
     });
@@ -276,7 +382,7 @@ describe('OrdersService', () => {
       );
 
       await expect(
-        service.updateStatus('order-1', OrderStatus.DELIVERED),
+        service.updateStatus('order-1', OrderStatus.DELIVERED, adminUser),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -286,7 +392,7 @@ describe('OrdersService', () => {
       );
 
       await expect(
-        service.updateStatus('order-1', OrderStatus.PENDING),
+        service.updateStatus('order-1', OrderStatus.PENDING, adminUser),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -298,8 +404,118 @@ describe('OrdersService', () => {
       const result = await service.updateStatus(
         'order-1',
         OrderStatus.PREPARING,
+        adminUser,
       );
       expect(result.status).toBe(OrderStatus.PREPARING);
+    });
+  });
+
+  describe('updateStatus (permissions par rôle/assignation)', () => {
+    it('un chef assigné peut passer pending -> preparing', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ status: OrderStatus.PENDING, assignedChefId: 'staff-1' }),
+      );
+
+      const result = await service.updateStatus(
+        'order-1',
+        OrderStatus.PREPARING,
+        chefUser,
+      );
+      expect(result.status).toBe(OrderStatus.PREPARING);
+    });
+
+    it('un chef non assigné à la commande est refusé', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ status: OrderStatus.PENDING, assignedChefId: 'staff-1' }),
+      );
+
+      await expect(
+        service.updateStatus('order-1', OrderStatus.PREPARING, otherChefUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('un chef ne peut pas passer une commande à delivered', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ status: OrderStatus.READY, assignedChefId: 'staff-1' }),
+      );
+
+      await expect(
+        service.updateStatus('order-1', OrderStatus.DELIVERED, chefUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('un serveur peut marquer une commande sur place comme livrée', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({
+          status: OrderStatus.READY,
+          serviceType: ServiceType.DINE_IN,
+        }),
+      );
+
+      const result = await service.updateStatus(
+        'order-1',
+        OrderStatus.DELIVERED,
+        waiterUser,
+      );
+      expect(result.status).toBe(OrderStatus.DELIVERED);
+    });
+
+    it('un serveur ne peut pas marquer une livraison comme livrée', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({
+          status: OrderStatus.READY,
+          serviceType: ServiceType.DELIVERY,
+        }),
+      );
+
+      await expect(
+        service.updateStatus('order-1', OrderStatus.DELIVERED, waiterUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('un livreur assigné peut marquer sa livraison comme livrée', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({
+          status: OrderStatus.READY,
+          serviceType: ServiceType.DELIVERY,
+          courierId: 'staff-4',
+        }),
+      );
+
+      const result = await service.updateStatus(
+        'order-1',
+        OrderStatus.DELIVERED,
+        deliveryUser,
+      );
+      expect(result.status).toBe(OrderStatus.DELIVERED);
+    });
+
+    it('un livreur non assigné à cette livraison est refusé', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({
+          status: OrderStatus.READY,
+          serviceType: ServiceType.DELIVERY,
+          courierId: 'staff-4',
+        }),
+      );
+
+      await expect(
+        service.updateStatus(
+          'order-1',
+          OrderStatus.DELIVERED,
+          otherDeliveryUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('un client ne peut jamais changer le statut', async () => {
+      mockOrdersRepository.findOne.mockResolvedValue(
+        buildOrder({ status: OrderStatus.PENDING }),
+      );
+
+      await expect(
+        service.updateStatus('order-1', OrderStatus.PREPARING, clientUser),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

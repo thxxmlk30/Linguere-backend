@@ -10,6 +10,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
+import { Staff } from '../staff/entities/staff.entity';
 import { MailService } from '../mail/mail.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthProvider } from '../common/enums/auth-provider.enum';
@@ -43,6 +44,10 @@ describe('AuthService', () => {
     save: jest.fn(),
   };
 
+  const mockStaffRepository = {
+    findOne: jest.fn(),
+  };
+
   const mockJwtService = {
     sign: jest.fn().mockReturnValue('signed-jwt'),
     decode: jest.fn(),
@@ -61,11 +66,13 @@ describe('AuthService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     process.env.NODE_ENV = 'test';
+    mockStaffRepository.findOne.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: getRepositoryToken(User), useValue: mockUsersRepository },
+        { provide: getRepositoryToken(Staff), useValue: mockStaffRepository },
         { provide: JwtService, useValue: mockJwtService },
         { provide: MailService, useValue: mockMailService },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
@@ -167,6 +174,32 @@ describe('AuthService', () => {
         service.login({ email: baseUser.email, password: 'MotDePasse123' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('inclut staffId quand le compte est lié à une fiche Staff', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(baseUser);
+      mockStaffRepository.findOne.mockResolvedValue({ id: 'staff-1' });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.login({
+        email: baseUser.email,
+        password: 'MotDePasse123',
+      });
+
+      expect(result.user.staffId).toBe('staff-1');
+    });
+
+    it('renvoie staffId à null quand le compte n’est lié à aucune fiche Staff', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(baseUser);
+      mockStaffRepository.findOne.mockResolvedValue(null);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.login({
+        email: baseUser.email,
+        password: 'MotDePasse123',
+      });
+
+      expect(result.user.staffId).toBeNull();
+    });
   });
 
   describe('verifyOtp', () => {
@@ -241,7 +274,13 @@ describe('AuthService', () => {
     it('stocke puis consomme un code à usage unique', async () => {
       const authResponse = {
         accessToken: 'jwt',
-        user: { id: '1', name: 'A', email: 'a@b.com', role: Role.CLIENT },
+        user: {
+          id: '1',
+          name: 'A',
+          email: 'a@b.com',
+          role: Role.CLIENT,
+          staffId: null,
+        },
       };
       mockCacheManager.get.mockResolvedValue(authResponse);
 

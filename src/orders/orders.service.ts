@@ -27,6 +27,7 @@ import { toSkipTake } from '../common/utils/pagination.util';
 interface AuthUser {
   id: string;
   role: Role;
+  staffId?: string | null;
 }
 
 // Transitions autorisees pour updateStatus() : un admin ne peut pas faire
@@ -223,7 +224,32 @@ export class OrdersService {
   }
 
   async findAllForUser(user: AuthUser, pagination?: PaginationQueryDto) {
-    const where = user.role === Role.ADMIN ? {} : { userId: user.id };
+    let where: Record<string, unknown> = {};
+
+    switch (user.role) {
+      case Role.ADMIN:
+        where = {};
+        break;
+      case Role.CHEF:
+        // Un chef sans fiche staff liee ne voit rien plutot que tout
+        // (ne devrait jamais arriver : le role CHEF vient uniquement du
+        // provisionnement d'une fiche Staff).
+        if (!user.staffId) return { data: [], total: 0 };
+        where = { assignedChefId: user.staffId };
+        break;
+      case Role.DELIVERY:
+        if (!user.staffId) return { data: [], total: 0 };
+        where = { courierId: user.staffId };
+        break;
+      case Role.WAITER:
+        // Vue de salle : un serveur suit toutes les commandes sur place,
+        // pas seulement celles qui lui sont nommement affectees.
+        where = { serviceType: ServiceType.DINE_IN };
+        break;
+      default:
+        where = { userId: user.id };
+    }
+
     const [orders, total] = await this.ordersRepository.findAndCount({
       where,
       order: { createdAt: 'DESC' },
@@ -249,14 +275,34 @@ export class OrdersService {
       throw new NotFoundException(`Commande introuvable (id: ${id})`);
     }
 
-    if (user.role !== Role.ADMIN && order.userId !== user.id) {
+    if (!this.canAccessOrder(order, user)) {
       throw new ForbiddenException("Vous n'avez pas accès à cette commande");
     }
 
     return this.toResponse(order);
   }
 
-  async updateStatus(id: string, status: OrderStatus) {
+  /**
+   * Acces en lecture a une commande : admin voit tout, client voit les
+   * siennes, chef/livreur les commandes qui leur sont assignees, serveur
+   * les commandes sur place (vue de salle).
+   */
+  private canAccessOrder(order: Order, user: AuthUser): boolean {
+    switch (user.role) {
+      case Role.ADMIN:
+        return true;
+      case Role.CHEF:
+        return order.assignedChefId === user.staffId;
+      case Role.DELIVERY:
+        return order.courierId === user.staffId;
+      case Role.WAITER:
+        return order.serviceType === ServiceType.DINE_IN;
+      default:
+        return order.userId === user.id;
+    }
+  }
+
+  async updateStatus(id: string, status: OrderStatus, user: AuthUser) {
     const order = await this.ordersRepository.findOne({ where: { id } });
 
     if (!order) {
@@ -270,11 +316,72 @@ export class OrdersService {
           `Transition de statut invalide : ${order.status} -> ${status}`,
         );
       }
+      this.assertCanTransition(order, status, user);
     }
 
     order.status = status;
     const saved = await this.ordersRepository.save(order);
     return this.toResponse(saved);
+  }
+
+  /**
+   * Permissions fines sur les transitions de statut, au-dela du controle
+   * de role grossier fait par RolesGuard :
+   * - ADMIN : toute transition valide.
+   * - CHEF : pending->preparing ou preparing->ready, uniquement sur les
+   *   commandes qui lui sont assignees (assignedChefId).
+   * - WAITER : ready->delivered pour les commandes sur place (il sert la
+   *   table), pas d'affectation individuelle.
+   * - DELIVERY : ready->delivered pour les commandes en livraison,
+   *   uniquement celles qui lui sont assignees (courierId).
+   */
+  private assertCanTransition(
+    order: Order,
+    newStatus: OrderStatus,
+    user: AuthUser,
+  ) {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+
+    const deniedMessage =
+      "Vous n'êtes pas autorisé à effectuer cette transition";
+
+    if (user.role === Role.CHEF) {
+      const isChefTransition =
+        (order.status === OrderStatus.PENDING &&
+          newStatus === OrderStatus.PREPARING) ||
+        (order.status === OrderStatus.PREPARING &&
+          newStatus === OrderStatus.READY);
+
+      if (!isChefTransition || order.assignedChefId !== user.staffId) {
+        throw new ForbiddenException(deniedMessage);
+      }
+      return;
+    }
+
+    const isServingTransition =
+      order.status === OrderStatus.READY && newStatus === OrderStatus.DELIVERED;
+
+    if (user.role === Role.WAITER) {
+      if (!isServingTransition || order.serviceType !== ServiceType.DINE_IN) {
+        throw new ForbiddenException(deniedMessage);
+      }
+      return;
+    }
+
+    if (user.role === Role.DELIVERY) {
+      if (
+        !isServingTransition ||
+        order.serviceType !== ServiceType.DELIVERY ||
+        order.courierId !== user.staffId
+      ) {
+        throw new ForbiddenException(deniedMessage);
+      }
+      return;
+    }
+
+    throw new ForbiddenException(deniedMessage);
   }
 
   async cancel(id: string, user: AuthUser) {

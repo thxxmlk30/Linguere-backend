@@ -56,4 +56,39 @@ export class MailService {
       return { delivered: false };
     }
   }
+
+  async sendStaffCredentials(
+    email: string,
+    fullName: string,
+    password: string,
+  ): Promise<{ delivered: boolean }> {
+    try {
+      await this.transporter.sendMail({
+        from: this.configService.get<string>(
+          'SMTP_FROM',
+          'noreply@linguere.com',
+        ),
+        to: email,
+        subject: 'Votre accès au dashboard Linguere',
+        html: `
+          <h1>Bonjour ${fullName},</h1>
+          <p>Un accès au dashboard Linguere vient de vous être créé.</p>
+          <p>Email : <strong>${email}</strong></p>
+          <p>Mot de passe temporaire : <strong>${password}</strong></p>
+          <p>Connectez-vous puis changez ce mot de passe dès que possible.</p>
+        `,
+      });
+      this.logger.log(`Staff credentials email sent to ${email}`);
+      return { delivered: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to send staff credentials email to ${email}: ${message}`,
+      );
+      if (isDevEnvironment()) {
+        this.logger.warn(`[DEV] Staff password for ${email}: ${password}`);
+      }
+      return { delivered: false };
+    }
+  }
 }

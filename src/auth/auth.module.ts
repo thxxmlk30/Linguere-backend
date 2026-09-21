@@ -9,6 +9,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { User } from '../users/entities/user.entity';
+import { Staff } from '../staff/entities/staff.entity';
 import { MailModule } from '../mail/mail.module';
 
 // passport-google-oauth20 lève une exception synchrone a l'instanciation
@@ -21,7 +22,7 @@ const googleOAuthConfigured = Boolean(
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Staff]),
     PassportModule,
     ConfigModule,
     MailModule,
