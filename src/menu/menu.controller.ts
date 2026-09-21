@@ -7,13 +7,16 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MenuService } from './menu.service';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import { MealCategory } from '../common/enums/meal-category.enum';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -26,8 +29,17 @@ export class MenuController {
 
   @Get()
   @ApiOperation({ summary: 'Lister les plats (filtrable par catégorie)' })
-  findAll(@Query('category') category?: MealCategory) {
-    return this.menuService.findAll(category);
+  async findAll(
+    @Query('category') category: MealCategory | undefined,
+    @Query() pagination: PaginationQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, total } = await this.menuService.findAll(
+      category,
+      pagination,
+    );
+    res.set('X-Total-Count', String(total));
+    return data;
   }
 
   @Get(':id')

@@ -1,6 +1,7 @@
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
@@ -11,6 +12,8 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { OrderItem } from './order-item.entity';
 import { OrderStatus } from '../../common/enums/order-status.enum';
+import { ServiceType } from '../../common/enums/service-type.enum';
+import { PaymentStatus } from '../../common/enums/payment-status.enum';
 
 @Entity('orders')
 export class Order {
@@ -30,8 +33,8 @@ export class Order {
   })
   items: OrderItem[];
 
-  @Column({ type: 'enum', enum: ['dine_in', 'delivery'], default: 'dine_in' })
-  serviceType: 'dine_in' | 'delivery';
+  @Column({ type: 'enum', enum: ServiceType, default: ServiceType.DINE_IN })
+  serviceType: ServiceType;
 
   @Column({ type: 'int', nullable: true })
   tableNumber: number | null;
@@ -74,10 +77,10 @@ export class Order {
 
   @Column({
     type: 'enum',
-    enum: ['unpaid', 'pending', 'paid', 'failed'],
-    default: 'unpaid',
+    enum: PaymentStatus,
+    default: PaymentStatus.UNPAID,
   })
-  paymentStatus: 'unpaid' | 'pending' | 'paid' | 'failed';
+  paymentStatus: PaymentStatus;
 
   @Column({ type: 'varchar', nullable: true })
   paymentProvider: string | null;
@@ -108,4 +111,9 @@ export class Order {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // Une commande deja payee/livree n'est jamais supprimee physiquement,
+  // pour preserver l'historique financier consulte par le module reports.
+  @DeleteDateColumn()
+  deletedAt: Date | null;
 }

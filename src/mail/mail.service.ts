@@ -9,10 +9,14 @@ export class MailService {
   private transporter: Transporter;
 
   constructor(private configService: ConfigService) {
+    const port = this.configService.get<number>('SMTP_PORT', 587);
     this.transporter = nodemailer.createTransport({
       host: this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com'),
-      port: this.configService.get<number>('SMTP_PORT', 587),
-      secure: false,
+      port,
+      // Port 465 = TLS implicite ; 587/25 = STARTTLS (secure:false, upgrade
+      // negocie apres coup). Fixer secure:false pour tous les ports cassait
+      // silencieusement l'envoi sur un serveur configure en port 465.
+      secure: Number(port) === 465,
       auth: {
         user: this.configService.get<string>('SMTP_USER'),
         pass: this.configService.get<string>('SMTP_PASS'),

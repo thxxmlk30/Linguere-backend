@@ -4,12 +4,17 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { AppModule } from '../app.module';
 import { AuthProvider } from '../common/enums/auth-provider.enum';
+import { IngredientUnit } from '../common/enums/ingredient-unit.enum';
 import { MealCategory } from '../common/enums/meal-category.enum';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { Role } from '../common/enums/role.enum';
+import { ServiceType } from '../common/enums/service-type.enum';
+import { StaffRole } from '../common/enums/staff-role.enum';
+import { StaffStatus } from '../common/enums/staff-status.enum';
 import { DeliveryZone } from '../delivery-zones/entities/delivery-zone.entity';
 import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { MenuItem } from '../menu/entities/menu-item.entity';
+import { MenuItemIngredient } from '../menu/entities/menu-item-ingredient.entity';
 import { Order } from '../orders/entities/order.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { Staff } from '../staff/entities/staff.entity';
@@ -62,7 +67,7 @@ const INGREDIENTS = [
   {
     name: 'Riz brisé',
     currentStock: 120,
-    unit: 'kg' as const,
+    unit: IngredientUnit.KG,
     minStock: 40,
     reorderThreshold: 60,
     criticalStock: 20,
@@ -74,7 +79,7 @@ const INGREDIENTS = [
   {
     name: 'Poisson',
     currentStock: 18,
-    unit: 'kg' as const,
+    unit: IngredientUnit.KG,
     minStock: 12,
     reorderThreshold: 20,
     criticalStock: 8,
@@ -86,7 +91,7 @@ const INGREDIENTS = [
   {
     name: 'Poulet',
     currentStock: 26,
-    unit: 'kg' as const,
+    unit: IngredientUnit.KG,
     minStock: 15,
     reorderThreshold: 25,
     criticalStock: 10,
@@ -98,7 +103,7 @@ const INGREDIENTS = [
   {
     name: 'Oignons',
     currentStock: 35,
-    unit: 'kg' as const,
+    unit: IngredientUnit.KG,
     minStock: 20,
     reorderThreshold: 30,
     criticalStock: 10,
@@ -110,7 +115,7 @@ const INGREDIENTS = [
   {
     name: 'Bissap sec',
     currentStock: 6,
-    unit: 'kg' as const,
+    unit: IngredientUnit.KG,
     minStock: 4,
     reorderThreshold: 8,
     criticalStock: 3,
@@ -125,48 +130,66 @@ const STAFF = [
   {
     name: 'Aminata Diop',
     email: 'admin.staff@linguere.sn',
-    role: 'admin' as const,
+    role: StaffRole.ADMIN,
     phone: '+221770000001',
     salary: 850000,
     hireDate: '2024-01-10',
     shift: 'Jour',
     zone: 'Direction',
-    status: 'active' as const,
+    status: StaffStatus.ACTIVE,
   },
   {
     name: 'Moussa Sarr',
     email: 'chef1@linguere.sn',
-    role: 'chef' as const,
+    role: StaffRole.CHEF,
     phone: '+221770000002',
     salary: 450000,
     hireDate: '2024-03-15',
     shift: 'Matin',
     zone: 'Cuisine chaude',
-    status: 'active' as const,
+    status: StaffStatus.ACTIVE,
   },
   {
     name: 'Fatou Sow',
     email: 'waiter1@linguere.sn',
-    role: 'waiter' as const,
+    role: StaffRole.WAITER,
     phone: '+221770000003',
     salary: 280000,
     hireDate: '2024-04-05',
     shift: 'Soir',
     zone: 'Salle principale',
-    status: 'active' as const,
+    status: StaffStatus.ACTIVE,
   },
   {
     name: 'Cheikh Fall',
     email: 'delivery1@linguere.sn',
-    role: 'delivery' as const,
+    role: StaffRole.DELIVERY,
     phone: '+221770000004',
     salary: 300000,
     hireDate: '2024-05-20',
     shift: 'Jour',
     zone: 'Dakar centre',
-    status: 'active' as const,
+    status: StaffStatus.ACTIVE,
   },
 ];
+
+// Recette indicative de chaque plat, pour démontrer le décrément de stock
+// automatique à la commande (feature/ingredient-stock-consumption).
+const RECIPES: Record<
+  string,
+  Array<{ ingredientName: string; quantityRequired: number }>
+> = {
+  Thiéboudienne: [
+    { ingredientName: 'Riz brisé', quantityRequired: 0.3 },
+    { ingredientName: 'Poisson', quantityRequired: 0.25 },
+    { ingredientName: 'Oignons', quantityRequired: 0.1 },
+  ],
+  'Yassa Poulet': [
+    { ingredientName: 'Poulet', quantityRequired: 0.35 },
+    { ingredientName: 'Oignons', quantityRequired: 0.15 },
+  ],
+  Bissap: [{ ingredientName: 'Bissap sec', quantityRequired: 0.05 }],
+};
 
 const DELIVERY_ZONES = [
   'dkr-plateau-centre',
@@ -227,11 +250,13 @@ async function findOrCreateStaff(
   return member;
 }
 
+// Exportee separement pour etre testee sans dependre de process.exit().
+export function shouldSkipSeed(env: NodeJS.ProcessEnv): boolean {
+  return env.NODE_ENV === 'production' && env.SEED_FORCE !== 'true';
+}
+
 async function seed() {
-  if (
-    process.env.NODE_ENV === 'production' &&
-    process.env.SEED_FORCE !== 'true'
-  ) {
+  if (shouldSkipSeed(process.env)) {
     console.log(
       'Seed Linguere: ignoré en production (le compte admin/mot de passe est fixe). ' +
         'Définissez SEED_FORCE=true pour forcer l’exécution.',
@@ -255,6 +280,9 @@ async function seed() {
   const staffRepository = app.get<Repository<Staff>>(getRepositoryToken(Staff));
   const ordersRepository = app.get<Repository<Order>>(
     getRepositoryToken(Order),
+  );
+  const recipeRepository = app.get<Repository<MenuItemIngredient>>(
+    getRepositoryToken(MenuItemIngredient),
   );
 
   const adminPassword = await bcrypt.hash('Admin123!', 10);
@@ -289,8 +317,36 @@ async function seed() {
     menuItems.push(await findOrCreateMenuItem(menuRepository, item));
   }
 
+  const ingredientsByName = new Map<string, Ingredient>();
   for (const ingredient of INGREDIENTS) {
-    await findOrCreateIngredient(ingredientsRepository, ingredient);
+    const saved = await findOrCreateIngredient(
+      ingredientsRepository,
+      ingredient,
+    );
+    ingredientsByName.set(saved.name, saved);
+  }
+
+  for (const menuItem of menuItems) {
+    const recipeLines = RECIPES[menuItem.name];
+    if (!recipeLines) continue;
+
+    const alreadySeeded = await recipeRepository.count({
+      where: { menuItemId: menuItem.id },
+    });
+    if (alreadySeeded > 0) continue;
+
+    for (const line of recipeLines) {
+      const ingredient = ingredientsByName.get(line.ingredientName);
+      if (!ingredient) continue;
+
+      await recipeRepository.save(
+        recipeRepository.create({
+          menuItemId: menuItem.id,
+          ingredientId: ingredient.id,
+          quantityRequired: line.quantityRequired,
+        }),
+      );
+    }
   }
 
   for (const member of STAFF) {
@@ -323,9 +379,11 @@ async function seed() {
     where: { userId: customer.id },
   });
   if (existingCustomerOrders === 0 && menuItems.length >= 4) {
-    const chef = await staffRepository.findOne({ where: { role: 'chef' } });
+    const chef = await staffRepository.findOne({
+      where: { role: StaffRole.CHEF },
+    });
     const courier = await staffRepository.findOne({
-      where: { role: 'delivery' },
+      where: { role: StaffRole.DELIVERY },
     });
     const zone = await zonesRepository.findOne({
       where: { id: DELIVERY_ZONES[0] },
@@ -333,7 +391,7 @@ async function seed() {
 
     const dineInOrder = ordersRepository.create({
       userId: customer.id,
-      serviceType: 'dine_in',
+      serviceType: ServiceType.DINE_IN,
       tableNumber: 4,
       deliveryZoneId: null,
       deliveryAddress: null,
@@ -366,7 +424,7 @@ async function seed() {
 
     const deliveryOrder = ordersRepository.create({
       userId: customer.id,
-      serviceType: 'delivery',
+      serviceType: ServiceType.DELIVERY,
       tableNumber: null,
       deliveryZoneId: zone?.id ?? null,
       deliveryAddress: 'Point E, rue 10',
@@ -402,7 +460,7 @@ async function seed() {
 
     const cancelledOrder = ordersRepository.create({
       userId: customer.id,
-      serviceType: 'delivery',
+      serviceType: ServiceType.DELIVERY,
       tableNumber: null,
       deliveryZoneId: zone?.id ?? null,
       deliveryAddress: 'Rufisque centre',
@@ -439,7 +497,11 @@ async function seed() {
   process.exit(0);
 }
 
-seed().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+// Ne s'auto-execute que lorsque ce fichier est lance directement (npm run
+// seed), jamais lors d'un simple import (ex: seed.spec.ts).
+if (require.main === module) {
+  seed().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

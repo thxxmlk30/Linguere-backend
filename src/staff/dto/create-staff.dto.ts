@@ -5,10 +5,12 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsIn,
+  IsEnum,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { StaffRole } from '../../common/enums/staff-role.enum';
+import { StaffStatus } from '../../common/enums/staff-status.enum';
 
 export class CreateStaffDto {
   @ApiProperty()
@@ -19,9 +21,9 @@ export class CreateStaffDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ enum: ['admin', 'waiter', 'chef', 'delivery'] })
-  @IsIn(['admin', 'waiter', 'chef', 'delivery'])
-  role: 'admin' | 'waiter' | 'chef' | 'delivery';
+  @ApiProperty({ enum: StaffRole })
+  @IsEnum(StaffRole)
+  role: StaffRole;
 
   @ApiProperty()
   @IsString()
@@ -49,8 +51,8 @@ export class CreateStaffDto {
   @IsString()
   zone?: string;
 
-  @ApiPropertyOptional({ enum: ['active', 'break', 'off'] })
+  @ApiPropertyOptional({ enum: StaffStatus })
   @IsOptional()
-  @IsIn(['active', 'break', 'off'])
-  status?: 'active' | 'break' | 'off';
+  @IsEnum(StaffStatus)
+  status?: StaffStatus;
 }

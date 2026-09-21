@@ -1,4 +1,5 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -6,10 +7,8 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-
-interface RequestUser {
-  id: string;
-}
+import type { RequestUser } from '../common/types/request-user.type';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -21,8 +20,13 @@ export class UsersController {
   @Get()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Lister tous les utilisateurs (admin uniquement)' })
-  findAll() {
-    return this.usersService.findAll();
+  async findAll(
+    @Query() pagination: PaginationQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, total } = await this.usersService.findAll(pagination);
+    res.set('X-Total-Count', String(total));
+    return data;
   }
 
   @Get('me')

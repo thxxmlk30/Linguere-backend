@@ -3,14 +3,9 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Role } from '../common/enums/role.enum';
 import { PaymentsService } from './payments.service';
 import { ConfirmStripePaymentDto } from './dto/confirm-stripe-payment.dto';
-
-interface RequestUser {
-  id: string;
-  role: Role;
-}
+import type { RequestUser } from '../common/types/request-user.type';
 
 @ApiTags('payments')
 @ApiBearerAuth()

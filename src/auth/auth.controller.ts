@@ -25,10 +25,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleAuthGuard } from '../common/guards/google-auth.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-
-interface RequestUser {
-  id: string;
-}
+import type { RequestUser } from '../common/types/request-user.type';
 
 interface GoogleProfile {
   providerId: string;

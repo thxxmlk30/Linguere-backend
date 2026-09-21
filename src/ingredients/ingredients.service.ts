@@ -1,19 +1,43 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Ingredient } from './entities/ingredient.entity';
+import { MenuItemIngredient } from '../menu/entities/menu-item-ingredient.entity';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginatedResult, toSkipTake } from '../common/utils/pagination.util';
 
 @Injectable()
 export class IngredientsService {
   constructor(
     @InjectRepository(Ingredient)
     private ingredientsRepository: Repository<Ingredient>,
+    @InjectRepository(MenuItemIngredient)
+    private recipeRepository: Repository<MenuItemIngredient>,
   ) {}
 
-  findAll() {
-    return this.ingredientsRepository.find({ order: { name: 'ASC' } });
+  async findAll(
+    pagination?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Ingredient>> {
+    const [data, total] = await this.ingredientsRepository.findAndCount({
+      order: { name: 'ASC' },
+      ...toSkipTake(pagination),
+    });
+    return { data, total };
+  }
+
+  async findLowStock() {
+    const all = await this.ingredientsRepository.find({
+      order: { name: 'ASC' },
+    });
+    return all.filter(
+      (ingredient) => ingredient.currentStock <= ingredient.reorderThreshold,
+    );
   }
 
   async findOne(id: string) {
@@ -42,20 +66,33 @@ export class IngredientsService {
 
   async update(id: string, dto: UpdateIngredientDto) {
     const ingredient = await this.findOne(id);
-    Object.assign(ingredient, {
-      ...dto,
-      lastRestockedAt: dto.lastRestockedAt
-        ? new Date(dto.lastRestockedAt)
-        : dto.lastRestockedAt,
-      lastCountedAt: dto.lastCountedAt
-        ? new Date(dto.lastCountedAt)
-        : dto.lastCountedAt,
-    });
+    Object.assign(ingredient, dto);
+
+    // Ne toucher ces deux champs que si le DTO les fournit explicitement :
+    // sinon Object.assign écraserait la date existante avec `undefined`
+    // (silencieusement, sans que la mise à jour partielle en soit responsable).
+    if (dto.lastRestockedAt !== undefined) {
+      ingredient.lastRestockedAt = new Date(dto.lastRestockedAt);
+    }
+    if (dto.lastCountedAt !== undefined) {
+      ingredient.lastCountedAt = new Date(dto.lastCountedAt);
+    }
+
     return this.ingredientsRepository.save(ingredient);
   }
 
   async remove(id: string) {
     const ingredient = await this.findOne(id);
+
+    const referencedByRecipes = await this.recipeRepository.count({
+      where: { ingredientId: id },
+    });
+    if (referencedByRecipes > 0) {
+      throw new ConflictException(
+        `"${ingredient.name}" est utilisé dans la recette d'au moins un plat et ne peut pas être supprimé`,
+      );
+    }
+
     await this.ingredientsRepository.remove(ingredient);
   }
 }

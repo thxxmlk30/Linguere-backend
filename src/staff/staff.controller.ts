@@ -6,12 +6,16 @@ import {
   Param,
   Post,
   Put,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -27,8 +31,13 @@ export class StaffController {
 
   @Get()
   @ApiOperation({ summary: 'Lister le personnel (admin)' })
-  findAll() {
-    return this.staffService.findAll();
+  async findAll(
+    @Query() pagination: PaginationQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, total } = await this.staffService.findAll(pagination);
+    res.set('X-Total-Count', String(total));
+    return data;
   }
 
   @Get(':id')
