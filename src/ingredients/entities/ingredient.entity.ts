@@ -5,6 +5,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { IngredientUnit } from '../../common/enums/ingredient-unit.enum';
 
 @Entity('ingredients')
 export class Ingredient {
@@ -17,8 +18,8 @@ export class Ingredient {
   @Column({ type: 'float', default: 0 })
   currentStock: number;
 
-  @Column({ type: 'enum', enum: ['kg', 'l', 'unit', 'g'], default: 'unit' })
-  unit: 'kg' | 'l' | 'unit' | 'g';
+  @Column({ type: 'enum', enum: IngredientUnit, default: IngredientUnit.UNIT })
+  unit: IngredientUnit;
 
   @Column({ type: 'float', default: 0 })
   minStock: number;

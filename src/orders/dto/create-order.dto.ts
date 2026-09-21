@@ -2,7 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsIn,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ServiceType } from '../../common/enums/service-type.enum';
 
 class OrderItemInputDto {
   @ApiProperty({ example: 'uuid-du-menu-item' })
@@ -24,23 +25,29 @@ class OrderItemInputDto {
 }
 
 export class CreateOrderDto {
-  @ApiProperty({ enum: ['dine_in', 'delivery'] })
-  @IsIn(['dine_in', 'delivery'])
-  serviceType: 'dine_in' | 'delivery';
+  @ApiProperty({ enum: ServiceType })
+  @IsEnum(ServiceType)
+  serviceType: ServiceType;
 
   @ApiPropertyOptional({ example: 4 })
-  @ValidateIf((order: CreateOrderDto) => order.serviceType === 'dine_in')
+  @ValidateIf(
+    (order: CreateOrderDto) => order.serviceType === ServiceType.DINE_IN,
+  )
   @IsInt()
   @Min(1)
   tableNumber?: number;
 
   @ApiPropertyOptional({ example: 'dkr-plateau-centre' })
-  @ValidateIf((order: CreateOrderDto) => order.serviceType === 'delivery')
+  @ValidateIf(
+    (order: CreateOrderDto) => order.serviceType === ServiceType.DELIVERY,
+  )
   @IsString()
   deliveryZoneId?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((order: CreateOrderDto) => order.serviceType === 'delivery')
+  @ValidateIf(
+    (order: CreateOrderDto) => order.serviceType === ServiceType.DELIVERY,
+  )
   @IsString()
   deliveryAddress?: string;
 

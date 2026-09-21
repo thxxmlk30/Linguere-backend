@@ -47,7 +47,12 @@ export class DeliveryZonesService {
 
   async update(id: string, dto: UpdateDeliveryZoneDto) {
     const zone = await this.findOne(id);
-    Object.assign(zone, dto);
+    // Defense en profondeur : meme si un `id` se glissait dans le body
+    // (le ValidationPipe global le filtre normalement), il ne doit jamais
+    // pouvoir ecraser la cle primaire de la zone ciblee.
+    const updatableFields: Record<string, unknown> = { ...dto };
+    delete updatableFields.id;
+    Object.assign(zone, updatableFields);
     return this.zonesRepository.save(zone);
   }
 

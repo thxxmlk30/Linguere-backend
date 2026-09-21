@@ -11,6 +11,7 @@ import Stripe from 'stripe';
 import { Order } from '../orders/entities/order.entity';
 import { Role } from '../common/enums/role.enum';
 import { OrderStatus } from '../common/enums/order-status.enum';
+import { PaymentStatus } from '../common/enums/payment-status.enum';
 
 interface AuthUser {
   id: string;
@@ -49,7 +50,7 @@ export class PaymentsService {
       );
     }
 
-    order.paymentStatus = 'pending';
+    order.paymentStatus = PaymentStatus.PENDING;
     order.paymentProvider = 'stripe';
     await this.ordersRepository.save(order);
 
@@ -158,7 +159,7 @@ export class PaymentsService {
       );
     }
 
-    order.paymentStatus = 'paid';
+    order.paymentStatus = PaymentStatus.PAID;
     order.paidAt = new Date();
     order.paymentSessionId = session.id;
     order.paymentIntentId =

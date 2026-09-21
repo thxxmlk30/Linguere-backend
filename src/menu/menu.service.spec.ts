@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MenuService } from './menu.service';
 import { MenuItem } from './entities/menu-item.entity';
+import { OrderItem } from '../orders/entities/order-item.entity';
 import { MealCategory } from '../common/enums/meal-category.enum';
 
 describe('MenuService', () => {
@@ -31,6 +32,10 @@ describe('MenuService', () => {
     remove: jest.fn(),
   };
 
+  const mockOrderItemsRepository = {
+    count: jest.fn(),
+  };
+
   const mockCacheManager = {
     get: jest.fn(),
     set: jest.fn(),
@@ -44,6 +49,10 @@ describe('MenuService', () => {
       providers: [
         MenuService,
         { provide: getRepositoryToken(MenuItem), useValue: mockRepository },
+        {
+          provide: getRepositoryToken(OrderItem),
+          useValue: mockOrderItemsRepository,
+        },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
       ],
     }).compile();
@@ -110,6 +119,26 @@ describe('MenuService', () => {
 
       expect(result).toEqual(mockMenuItem);
       expect(mockCacheManager.del).toHaveBeenCalledWith('menu:all');
+    });
+  });
+
+  describe('remove', () => {
+    it('supprime un plat jamais commandé', async () => {
+      mockRepository.findOne.mockResolvedValue(mockMenuItem);
+      mockOrderItemsRepository.count.mockResolvedValue(0);
+
+      await service.remove('uuid-1');
+
+      expect(mockRepository.remove).toHaveBeenCalledWith(mockMenuItem);
+      expect(mockCacheManager.del).toHaveBeenCalledWith('menu:all');
+    });
+
+    it('refuse de supprimer un plat déjà référencé par une commande', async () => {
+      mockRepository.findOne.mockResolvedValue(mockMenuItem);
+      mockOrderItemsRepository.count.mockResolvedValue(3);
+
+      await expect(service.remove('uuid-1')).rejects.toThrow(ConflictException);
+      expect(mockRepository.remove).not.toHaveBeenCalled();
     });
   });
 });
