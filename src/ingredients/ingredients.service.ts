@@ -42,15 +42,18 @@ export class IngredientsService {
 
   async update(id: string, dto: UpdateIngredientDto) {
     const ingredient = await this.findOne(id);
-    Object.assign(ingredient, {
-      ...dto,
-      lastRestockedAt: dto.lastRestockedAt
-        ? new Date(dto.lastRestockedAt)
-        : dto.lastRestockedAt,
-      lastCountedAt: dto.lastCountedAt
-        ? new Date(dto.lastCountedAt)
-        : dto.lastCountedAt,
-    });
+    Object.assign(ingredient, dto);
+
+    // Ne toucher ces deux champs que si le DTO les fournit explicitement :
+    // sinon Object.assign écraserait la date existante avec `undefined`
+    // (silencieusement, sans que la mise à jour partielle en soit responsable).
+    if (dto.lastRestockedAt !== undefined) {
+      ingredient.lastRestockedAt = new Date(dto.lastRestockedAt);
+    }
+    if (dto.lastCountedAt !== undefined) {
+      ingredient.lastCountedAt = new Date(dto.lastCountedAt);
+    }
+
     return this.ingredientsRepository.save(ingredient);
   }
 

@@ -5,6 +5,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { StaffRole } from '../../common/enums/staff-role.enum';
+import { StaffStatus } from '../../common/enums/staff-status.enum';
 
 @Entity('staff')
 export class Staff {
@@ -19,10 +21,10 @@ export class Staff {
 
   @Column({
     type: 'enum',
-    enum: ['admin', 'waiter', 'chef', 'delivery'],
-    default: 'waiter',
+    enum: StaffRole,
+    default: StaffRole.WAITER,
   })
-  role: 'admin' | 'waiter' | 'chef' | 'delivery';
+  role: StaffRole;
 
   @Column()
   phone: string;
@@ -39,8 +41,8 @@ export class Staff {
   @Column({ type: 'varchar', nullable: true })
   zone: string | null;
 
-  @Column({ type: 'enum', enum: ['active', 'break', 'off'], default: 'active' })
-  status: 'active' | 'break' | 'off';
+  @Column({ type: 'enum', enum: StaffStatus, default: StaffStatus.ACTIVE })
+  status: StaffStatus;
 
   @CreateDateColumn()
   createdAt: Date;

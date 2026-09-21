@@ -19,11 +19,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
-
-interface RequestUser {
-  id: string;
-  role: Role;
-}
+import type { RequestUser } from '../common/types/request-user.type';
 
 @ApiTags('orders')
 @ApiBearerAuth()

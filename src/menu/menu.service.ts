@@ -1,9 +1,15 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { MenuItem } from './entities/menu-item.entity';
+import { OrderItem } from '../orders/entities/order-item.entity';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import { MealCategory } from '../common/enums/meal-category.enum';
@@ -15,6 +21,8 @@ const MENU_CACHE_TTL = 60; // secondes
 export class MenuService {
   constructor(
     @InjectRepository(MenuItem) private menuRepository: Repository<MenuItem>,
+    @InjectRepository(OrderItem)
+    private orderItemsRepository: Repository<OrderItem>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
@@ -63,6 +71,17 @@ export class MenuService {
 
   async remove(id: string): Promise<void> {
     const item = await this.findOne(id);
+
+    const referencedByOrders = await this.orderItemsRepository.count({
+      where: { menuItemId: id },
+    });
+    if (referencedByOrders > 0) {
+      throw new ConflictException(
+        `"${item.name}" a déjà été commandé et ne peut pas être supprimé ` +
+          '(marquez-le indisponible à la place)',
+      );
+    }
+
     await this.menuRepository.remove(item);
     await this.invalidateCache();
   }

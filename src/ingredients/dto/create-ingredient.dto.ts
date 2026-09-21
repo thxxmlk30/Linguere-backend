@@ -2,12 +2,13 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsNumber,
-  IsIn,
+  IsEnum,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IngredientUnit } from '../../common/enums/ingredient-unit.enum';
 
 export class CreateIngredientDto {
   @ApiProperty()
@@ -20,9 +21,9 @@ export class CreateIngredientDto {
   @Min(0)
   currentStock: number;
 
-  @ApiProperty({ enum: ['kg', 'l', 'unit', 'g'] })
-  @IsIn(['kg', 'l', 'unit', 'g'])
-  unit: 'kg' | 'l' | 'unit' | 'g';
+  @ApiProperty({ enum: IngredientUnit })
+  @IsEnum(IngredientUnit)
+  unit: IngredientUnit;
 
   @ApiProperty({ example: 0 })
   @Type(() => Number)
