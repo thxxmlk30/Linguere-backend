@@ -68,12 +68,17 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.CHEF, Role.WAITER, Role.DELIVERY)
   @ApiOperation({
-    summary: "Changer le statut d'une commande (admin uniquement)",
+    summary:
+      "Changer le statut d'une commande (admin, ou personnel sur ses commandes assignées)",
   })
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
-    return this.ordersService.updateStatus(id, dto.status);
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderStatusDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.ordersService.updateStatus(id, dto.status, user);
   }
 
   @Patch(':id/cancel')

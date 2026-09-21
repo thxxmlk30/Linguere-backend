@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { User } from '../../users/entities/user.entity';
+import { Staff } from '../../staff/entities/staff.entity';
 
 const JWT_BLACKLIST_PREFIX = 'auth:blacklist:';
 
@@ -15,6 +16,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     configService: ConfigService,
     @InjectRepository(User) private usersRepository: Repository<User>,
+    @InjectRepository(Staff) private staffRepository: Repository<Staff>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     // passport-jwt's Strategy typing is too loose under this lint setup.
@@ -58,12 +60,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
+    // Toujours re-derive depuis la base (jamais depuis le payload signe) :
+    // un lien Staff cree/retire apres l'emission du token doit prendre
+    // effet immediatement, comme pour le role.
+    const staff = await this.staffRepository.findOne({
+      where: { userId: user.id },
+    });
+
     // Ce qui est retourné ici est injecté dans request.user
     return {
       id: user.id,
       email: user.email,
       role: user.role,
       fullName: user.fullName,
+      staffId: staff?.id ?? null,
     };
   }
 }

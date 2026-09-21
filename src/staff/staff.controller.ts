@@ -15,6 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { ProvisionStaffAccountDto } from './dto/provision-staff-account.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -62,5 +63,16 @@ export class StaffController {
   @ApiOperation({ summary: 'Supprimer un membre du personnel (admin)' })
   remove(@Param('id') id: string) {
     return this.staffService.remove(id);
+  }
+
+  @Post(':id/provision-account')
+  @ApiOperation({
+    summary: 'Créer un accès de connexion pour ce membre (admin)',
+  })
+  provisionAccount(
+    @Param('id') id: string,
+    @Body() dto: ProvisionStaffAccountDto,
+  ) {
+    return this.staffService.provisionAccount(id, dto);
   }
 }

@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtStrategy } from './jwt.strategy';
 import { User } from '../../users/entities/user.entity';
+import { Staff } from '../../staff/entities/staff.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuthProvider } from '../../common/enums/auth-provider.enum';
 
@@ -27,16 +28,19 @@ describe('JwtStrategy', () => {
   };
 
   const mockUsersRepository = { findOne: jest.fn() };
+  const mockStaffRepository = { findOne: jest.fn() };
   const mockCacheManager = { get: jest.fn() };
   const mockConfigService = { get: jest.fn().mockReturnValue('test-secret') };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockStaffRepository.findOne.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JwtStrategy,
         { provide: getRepositoryToken(User), useValue: mockUsersRepository },
+        { provide: getRepositoryToken(Staff), useValue: mockStaffRepository },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
         { provide: ConfigService, useValue: mockConfigService },
       ],
@@ -57,6 +61,22 @@ describe('JwtStrategy', () => {
     });
 
     expect(result.id).toBe(baseUser.id);
+    expect(result.staffId).toBeNull();
+  });
+
+  it('renseigne staffId quand une fiche Staff est liée au compte', async () => {
+    mockCacheManager.get.mockResolvedValue(undefined);
+    mockUsersRepository.findOne.mockResolvedValue(baseUser);
+    mockStaffRepository.findOne.mockResolvedValue({ id: 'staff-1' });
+
+    const result = await strategy.validate({
+      sub: baseUser.id,
+      email: baseUser.email,
+      role: baseUser.role,
+      jti: 'jti-1',
+    });
+
+    expect(result.staffId).toBe('staff-1');
   });
 
   it('rejette un token dont le jti est blacklisté', async () => {

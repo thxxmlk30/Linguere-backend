@@ -2,11 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { StaffRole } from '../../common/enums/staff-role.enum';
 import { StaffStatus } from '../../common/enums/staff-status.enum';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('staff')
 export class Staff {
@@ -49,4 +52,14 @@ export class Staff {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // Compte de connexion optionnel : une fiche Staff (RH) n'a pas forcement
+  // d'acces au dashboard tant que l'admin ne l'a pas "provisionnee"
+  // (POST /staff/:id/provision-account).
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  userId: string | null;
+
+  @OneToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'userId' })
+  user: User | null;
 }
