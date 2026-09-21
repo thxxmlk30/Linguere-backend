@@ -1,13 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -16,8 +20,12 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Role } from '../common/enums/role.enum';
 import { AuthProvider } from '../common/enums/auth-provider.enum';
 import { MailService } from '../mail/mail.service';
+import { isDevEnvironment } from '../common/utils/env.util';
 
 const OTP_TTL_MINUTES = 10;
+const GOOGLE_EXCHANGE_CODE_TTL_MS = 60 * 1000;
+const JWT_BLACKLIST_PREFIX = 'auth:blacklist:';
+const GOOGLE_EXCHANGE_PREFIX = 'auth:google-exchange:';
 
 interface GoogleProfile {
   providerId: string;
@@ -31,6 +39,7 @@ export class AuthService {
     @InjectRepository(User) private usersRepository: Repository<User>,
     private jwtService: JwtService,
     private mailService: MailService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -66,7 +75,7 @@ export class AuthService {
       email: saved.email,
     };
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (isDevEnvironment()) {
       response.devOtpCode = otpResult.code;
     }
 
@@ -107,7 +116,7 @@ export class AuthService {
       message: 'Un code de vérification a été envoyé par email.',
     };
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (isDevEnvironment()) {
       response.devOtpCode = otpResult.code;
     }
 
@@ -148,7 +157,7 @@ export class AuthService {
         message: 'Si ce compte existe, un code a été envoyé par email.',
       };
 
-      if (process.env.NODE_ENV !== 'production') {
+      if (isDevEnvironment()) {
         response.devOtpCode = otpResult.code;
       }
 
@@ -224,6 +233,67 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
+  /**
+   * Stocke un token deja emis pour ce user derriere un code opaque a usage
+   * unique (TTL 60s), pour eviter de faire transiter le JWT en clair dans
+   * l'URL de redirection OAuth (historique navigateur, logs, header Referer).
+   */
+  async createGoogleExchangeCode(authResponse: {
+    accessToken: string;
+    user: { id: string; name: string; email: string; role: Role };
+  }): Promise<string> {
+    const code = randomUUID();
+    await this.cacheManager.set(
+      `${GOOGLE_EXCHANGE_PREFIX}${code}`,
+      authResponse,
+      GOOGLE_EXCHANGE_CODE_TTL_MS,
+    );
+    return code;
+  }
+
+  async consumeGoogleExchangeCode(code: string) {
+    const key = `${GOOGLE_EXCHANGE_PREFIX}${code}`;
+    const authResponse = await this.cacheManager.get<{
+      accessToken: string;
+      user: { id: string; name: string; email: string; role: Role };
+    }>(key);
+
+    if (!authResponse) {
+      throw new BadRequestException('Code d echange invalide ou expire');
+    }
+
+    await this.cacheManager.del(key);
+    return authResponse;
+  }
+
+  /**
+   * Revoque le token courant en blacklistant son jti jusqu'a expiration
+   * naturelle (le JWT reste stateless, seul ce jti devient invalide).
+   */
+  async logout(token: string) {
+    const decoded = this.jwtService.decode<{ jti?: string; exp?: number }>(
+      token,
+    );
+
+    if (decoded?.jti && decoded.exp) {
+      const ttlMs = decoded.exp * 1000 - Date.now();
+      if (ttlMs > 0) {
+        await this.cacheManager.set(
+          `${JWT_BLACKLIST_PREFIX}${decoded.jti}`,
+          true,
+          ttlMs,
+        );
+      }
+    }
+
+    return { message: 'Deconnecte' };
+  }
+
+  async isTokenBlacklisted(jti: string): Promise<boolean> {
+    const value = await this.cacheManager.get(`${JWT_BLACKLIST_PREFIX}${jti}`);
+    return Boolean(value);
+  }
+
   private async generateAndSendOtp(
     user: User,
   ): Promise<{ code: string; delivered: boolean }> {
@@ -241,7 +311,12 @@ export class AuthService {
   }
 
   private buildAuthResponse(user: User) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      jti: randomUUID(),
+    };
 
     return {
       accessToken: this.jwtService.sign(payload),
