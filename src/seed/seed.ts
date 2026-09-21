@@ -250,11 +250,13 @@ async function findOrCreateStaff(
   return member;
 }
 
+// Exportee separement pour etre testee sans dependre de process.exit().
+export function shouldSkipSeed(env: NodeJS.ProcessEnv): boolean {
+  return env.NODE_ENV === 'production' && env.SEED_FORCE !== 'true';
+}
+
 async function seed() {
-  if (
-    process.env.NODE_ENV === 'production' &&
-    process.env.SEED_FORCE !== 'true'
-  ) {
+  if (shouldSkipSeed(process.env)) {
     console.log(
       'Seed Linguere: ignoré en production (le compte admin/mot de passe est fixe). ' +
         'Définissez SEED_FORCE=true pour forcer l’exécution.',
@@ -495,7 +497,11 @@ async function seed() {
   process.exit(0);
 }
 
-seed().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+// Ne s'auto-execute que lorsque ce fichier est lance directement (npm run
+// seed), jamais lors d'un simple import (ex: seed.spec.ts).
+if (require.main === module) {
+  seed().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
