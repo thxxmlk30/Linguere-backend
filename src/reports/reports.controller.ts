@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
+import { TopItemsQueryDto } from './dto/top-items-query.dto';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -31,7 +32,7 @@ export class ReportsController {
 
   @Get('top-items')
   @ApiOperation({ summary: 'Plats les plus vendus (admin, cache 60s)' })
-  topItems(@Query('limit') limit?: string) {
-    return this.reportsService.topItems(limit ? Number(limit) : 5);
+  topItems(@Query() query: TopItemsQueryDto) {
+    return this.reportsService.topItems(query.limit ?? 5);
   }
 }

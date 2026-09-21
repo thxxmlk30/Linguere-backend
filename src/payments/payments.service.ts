@@ -28,7 +28,11 @@ export class PaymentsService {
     const secretKey = this.configService
       .get<string>('STRIPE_SECRET_KEY')
       ?.trim();
-    this.stripe = secretKey ? new Stripe(secretKey) : null;
+    // Version figée explicitement : une mise à jour du SDK stripe ne doit pas
+    // changer silencieusement le format des réponses utilisées ici.
+    this.stripe = secretKey
+      ? new Stripe(secretKey, { apiVersion: '2026-06-24.dahlia' })
+      : null;
   }
 
   async createStripeCheckout(orderId: string, user: AuthUser) {
@@ -123,10 +127,35 @@ export class PaymentsService {
       throw new BadRequestException('Stripe n est pas configure');
     }
 
-    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur Stripe inconnue';
+      throw new BadRequestException(
+        `Impossible de recuperer la session Stripe: ${message}`,
+      );
+    }
 
     if (session.payment_status !== 'paid') {
       throw new BadRequestException('Paiement non valide ou incomplet');
+    }
+
+    // La session doit correspondre exactement a la commande ciblee : sans ce
+    // controle, le sessionId "paid" d'une commande bon marche pourrait etre
+    // rejoue sur n'importe quelle autre commande du meme client.
+    if (session.metadata?.orderId !== order.id) {
+      throw new BadRequestException(
+        'Cette session de paiement ne correspond pas a cette commande',
+      );
+    }
+
+    const expectedAmount = this.toStripeUnitAmount(Number(order.totalAmount));
+    if (session.amount_total !== expectedAmount) {
+      throw new BadRequestException(
+        'Le montant paye ne correspond pas au montant de la commande',
+      );
     }
 
     order.paymentStatus = 'paid';

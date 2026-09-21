@@ -31,4 +31,8 @@ EXPOSE 3000
 # Utilisateur non-root pour la sécurité
 USER node
 
-CMD ["sh", "-c", "node dist/seed/seed.js && node dist/main.js"]
+# Le seed n'est plus lancé automatiquement au démarrage du conteneur (il
+# créait un compte admin à mot de passe fixe à chaque redémarrage en prod).
+# Exécution manuelle : `npm run seed` (protégé par un garde NODE_ENV, voir
+# src/seed/seed.ts).
+CMD ["node", "dist/main.js"]
