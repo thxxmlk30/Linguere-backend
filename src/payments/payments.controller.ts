@@ -5,6 +5,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
 import { PaymentsService } from './payments.service';
+import { ConfirmStripePaymentDto } from './dto/confirm-stripe-payment.dto';
 
 interface RequestUser {
   id: string;
@@ -33,7 +34,7 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Confirmer le paiement Stripe d une commande' })
   confirmStripePayment(
     @Param('id') id: string,
-    @Body() body: { sessionId: string },
+    @Body() body: ConfirmStripePaymentDto,
     @CurrentUser() user: RequestUser,
   ) {
     return this.paymentsService.confirmStripePayment(id, user, body.sessionId);

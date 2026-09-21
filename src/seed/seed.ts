@@ -228,6 +228,17 @@ async function findOrCreateStaff(
 }
 
 async function seed() {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.SEED_FORCE !== 'true'
+  ) {
+    console.log(
+      'Seed Linguere: ignoré en production (le compte admin/mot de passe est fixe). ' +
+        'Définissez SEED_FORCE=true pour forcer l’exécution.',
+    );
+    process.exit(0);
+  }
+
   console.log('Seed Linguere: démarrage...');
   const app = await NestFactory.createApplicationContext(AppModule);
 

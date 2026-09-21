@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
+import { isDevEnvironment } from '../common/utils/env.util';
 
 @Injectable()
 export class MailService {
@@ -45,7 +46,9 @@ export class MailService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to send OTP email to ${email}: ${message}`);
-      this.logger.warn(`[DEV] OTP code for ${email}: ${code}`);
+      if (isDevEnvironment()) {
+        this.logger.warn(`[DEV] OTP code for ${email}: ${code}`);
+      }
       return { delivered: false };
     }
   }

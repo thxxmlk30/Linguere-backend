@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 interface GoogleProfile {
   id: string;
   name: { givenName: string; familyName: string };
-  emails: Array<{ value: string }>;
+  emails?: Array<{ value: string }>;
 }
 
 @Injectable()
@@ -31,6 +31,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy) {
     done: VerifyCallback,
   ) {
     const { id, name, emails } = profile;
+
+    if (!emails?.length) {
+      done(
+        new UnauthorizedException(
+          'Ce compte Google ne fournit pas d adresse email publique',
+        ),
+        false,
+      );
+      return;
+    }
+
     const user = {
       providerId: id,
       email: emails[0].value,
